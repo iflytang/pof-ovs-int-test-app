@@ -80,13 +80,39 @@ public class AppComponent {
     private final Logger log = LoggerFactory.getLogger(getClass());
     private ApplicationId appId;
 
+    int port1 = 1;
+    int port2 = 2;
+    int port3 = 3;
     int controller_port = (int) PortNumber.CONTROLLER.toLong();
 
-    private byte tableId;              // used for openflow
-    private DeviceId deviceId;
 
-    private byte global_table_id_1;    // used for pof
-    private byte global_table_id_2;    // used for pof
+    /* deviceId List */
+    private DeviceId sw1 = DeviceId.deviceId("pof:0000000000000001");
+    private DeviceId sw2 = DeviceId.deviceId("pof:0000000000000002");
+    private DeviceId sw3 = DeviceId.deviceId("pof:0000000000000003");
+    private DeviceId sw4 = DeviceId.deviceId("pof:0000000000000004");
+    private DeviceId sw5 = DeviceId.deviceId("pof:0000000000000005");
+    private DeviceId sw6 = DeviceId.deviceId("pof:0000000000000006");
+
+    /* global tableId. */
+    private byte sw1_tbl0, sw1_tbl1;
+    private byte sw2_tbl0, sw2_tbl1;
+    private byte sw3_tbl0, sw3_tbl1;
+    private byte sw4_tbl0, sw4_tbl1;
+    private byte sw5_tbl0, sw5_tbl1;
+    private byte sw6_tbl0, sw6_tbl1;
+
+    /* group table key */
+    private String sel_key = "abc";
+    private int sel_groupId = 0x16;
+    private String all_key = "def";
+    private int all_groupId = 0x17;
+
+
+    /* match field values */
+    private String srcIp = "0a000001";
+    private String int_type = "0908";
+
 
     // field_id
     public final short DMAC = 1;
@@ -95,6 +121,8 @@ public class AppComponent {
     public final short SIP = 12;
     public final short DIP = 13;
     public final short TEST = 14;  // added protocol field, {272, 16, '0908'}
+    public final short INT_TYPE = 15;  // added protocol field, {272, 16, '0908'}
+    public final short INT_TTL = 16;   // {288, 8}
 
     // macro definition
     static final short ETH_HEADER_LEN         =     14 * 8;
@@ -122,149 +150,134 @@ public class AppComponent {
     @Activate
     protected void activate() {
         appId = coreService.registerApplication("org.onosproject.test.action");
-         pofTestStart();
-//        openflowTestStart();
+        /* test INT collector performance, single node */
+//        pofTestStart1();
+
+        /* test performance: no INT, per-packet INT, selective INT, single node */
+//        pofTestStart2();
+
+        /* test selective INT precision or path revalidation, six node topology */
+        pofTestStart3();
     }
 
     @Deactivate
     protected void deactivate() {
-         pofTestStop();
-//        openflowTestStop();
+//        pofTestStop1();
+//        pofTestStop2();
+        pofTestStop3();
     }
 
     /**
      * ==================== pof test ==================
      */
-    public void pofTestStart() {
+    public void pofTestStart1() {
         log.info("org.onosproject.pof.test.action Started");
-        // deviceId = DeviceId.deviceId("pof:ffffffffcd0318d2");
-//        deviceId = deviceService.getAvailableDevices().iterator().next().id();
-        deviceId = DeviceId.deviceId("pof:0000000000000001");
-        log.info("deviceId: " + deviceId.toString());
-//        deviceService.changePortState(deviceId, PortNumber.portNumber(1), true);
-//        deviceService.changePortState(deviceId, PortNumber.portNumber(2), true);
 
-        // send flow table match ip
-        byte tableId = sendPofFlowTable(deviceId, "FirstEntryTable");
-        byte next_table_id = sendPofFlowTable(deviceId, "AddVlcHeaderTable");
+        /** SRC(sw1): send flow table match ip{208, 32} */
+        sw1_tbl0 = send_pof_flow_table_match_SIP_at_SRC(sw1, "AddIntHeader");
 
-        // send flow table match srcMac
-//        byte tableId = send_pof_flow_table_match_srcMAC(deviceId, "FirstEntryTable");
-//        byte next_table_id = send_pof_flow_table_match_srcMAC(deviceId, "AddVlcHeaderTable");
-
-        log.info("pof-ovs-action-test-app: deviceId={}, tableId={}", deviceId, tableId);
-        log.info("pof-ovs-action-test-app: next_table_id={}", next_table_id);
-
-        // used for removing flow_table in pofTestStop()
-        global_table_id_1 = tableId;
-        global_table_id_2 = next_table_id;
-
-        // wait 1s
-        try {
-            Thread.sleep(1000);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        /* send flow rules */
-
-        /* test pof_output flow rule */
-//        install_pof_output_flow_rule(deviceId, tableId, "0a000001", 3, 12);
-//        install_pof_output_flow_rule(deviceId, tableId, "0a010101", 3, 12);
-//        install_pof_set_field_rule(deviceId, tableId, "0a010101", 3, 12);
-
-
-        /* test multi-flow support.
-         * if we test default rule, use the match_mask as '00000000' instead of 'ffffffff' */
-//        install_pof_add_dynamic_field_rule(deviceId, tableId, "0a000001", 3, 12);
-//        install_pof_add_static_field_rule(deviceId, tableId, "0a010101", 2, 12);
-
-//         install_pof_set_field_rule(deviceId, tableId, "0a000001", 2, 1);
-//         installDeleteFieldFlowRule(deviceId, tableId, "0a000001", 2);
-        // installModifyFieldFlowRule(deviceId, tableId, "0a000001", 2);
-//        installDropFlowRule(deviceId, tableId, "0a000001", 2);
-
-        /* test pof_select_group_rule */
-//        install_pof_select_group_rule(deviceId, tableId, "0a000001", "abc", 0x16, 1, true, "def");
-//        install_pof_group_rule(deviceId, tableId, "0a000001", 0x16, 1);
-
-        /* test pof_all_group_rule */
-//        install_pof_all_group_rule(deviceId, tableId, "0a000001", "abc", 0x16, 1, true, "def");
-//        install_pof_group_rule(deviceId, tableId, "0a000001", 0x16, 1);
-
-//        try {
-//            Thread.sleep(3000);
-//        } catch (Exception e) {
-//            e.printStackTrace();
-//        }
-
-        /* test mod pof_group_rule */
-//        install_pof_select_group_rule(deviceId, tableId, "0a000001", "abc", 0x16, 1, false, "def");
-//        install_pof_group_rule(deviceId, tableId, "0a000001", 0x33, 1);
-
-        /* test write_metadata and add_vlc_header */
-//        install_pof_write_metadata_from_packet_entry(deviceId, tableId, next_table_id, "0a000001", 12);
-//        install_pof_add_vlc_header_entry(deviceId, next_table_id, "0a000001", 2, 1,
-//                (byte) 0x01, (short) 0x0002, (short) 0x0003, (short) 0x0004);
-//        try {
-//            Thread.sleep(10000);
-//        } catch (Exception e) {
-//            e.printStackTrace();
-//        }
-//        // delete old entry before send new entry
-//        install_pof_add_vlc_header_entry(deviceId, next_table_id, "0a000001", 2, 1,
-//                (byte) 0x04, (short) 0x0003, (short) 0x0002, (short) 0x0001);
-
-        /* test add static field flow rule */
-//        install_pof_add_static_field_rule(deviceId, tableId, "0a000001", 2, 12);
-
-        /* test add dynamic INT field flow rule */
-//        install_pof_add_dynamic_field_rule(deviceId, tableId, "0a000001", 3, 12);
-
-        /* test set_field flow rule (set_dst_ip) */
-//        install_pof_set_field_rule(deviceId, tableId, "0a000001", 2, 12);
-
-        /* test modify_field flow rule */
-//        install_pof_modify_field_rule(deviceId, tableId, "0a000001", 2, 12);
-
-        /* test delete_field flow rule */
-//        install_pof_delete_field_rule(deviceId, tableId, "0a000001", 2, 12);
-
-        /* test delete_trunc_field flow rule */
-//        install_pof_delete_trunc_field_rule(deviceId, tableId, "0a000001", 2, 12);
-
-        /* test delete_int_field flow rule */
-//        install_pof_delete_int_field_rule(deviceId, tableId, "0a000001", 2, 12);
-
-
-
-        /* test selective INT performance.
-        *  1. no INT.
-        *  2. per packet INT. adjust 'mapInfo'
-        * */
-        // no int
-//        install_pof_no_int_output_flow_rule(deviceId, tableId, "0a000001", 2, 12);
-
-        // per packet INT
-        String mapInfo = "3f";
-//        install_pof_add_int_field_rule(deviceId, tableId, "0a000001", 2, 12, mapInfo);
-
-        // selective , adjust w1:w2 in first method. (w1 > w2)
-        install_pof_select_group_rule(deviceId, tableId, "0a000001", "abc", 0x16, 1, true, "def");
-        install_pof_group_rule(deviceId, tableId, "0a000001", 0x16, 1);
+        // adjust add_int_field's value[0], i.e. 'mapInfo'
+        install_pof_all_group_rule_match_srcIP(sw1, sw6_tbl0, srcIp, all_key, all_groupId, 12, port2, port3, "3f");
+        install_pof_group_rule_match_srcIp(sw1, sw1_tbl0, srcIp, all_groupId, 12);
     }
 
-    public void pofTestStop() {
-        /* remove group tables */
-        remove_pof_group_tables(deviceId, "abc");
-//        remove_pof_group_tables(deviceId, "def");
+    public void pofTestStop1() {
+        log.info("org.onosproject.pof.test.action Stopped");
+        remove_pof_group_tables(sw1, all_key);
+        remove_pof_flow_table(sw1, sw1_tbl0);
+    }
 
-        remove_pof_flow_table(deviceId, global_table_id_1);
-        remove_pof_flow_table(deviceId, global_table_id_2);
+    public void pofTestStart2() {
+        log.info("org.onosproject.pof.test.action Started");
+
+        /** SRC(sw1): send flow table match ip{208, 32} */
+        sw1_tbl0 = send_pof_flow_table_match_SIP_at_SRC(sw1, "AddIntHeader");
+
+        /* test: no INT */
+        install_pof_no_int_output_flow_rule(sw1, sw1_tbl0, srcIp, port2, 12);
+
+        /* test: per-packet INT */
+//        install_pof_add_int_field_rule_match_srcIp(sw1, sw1_tbl0, srcIp, port2, 12, "3f");
+
+        /* test: selective INT, adjust w1:w2 in first method. (w1 > w2) */
+        short w1 = 9, w2 = 1;
+//        install_pof_select_group_rule(sw1, sw1_tbl0, srcIp, sel_key, sel_groupId, 12, w1, w2, "3f");
+//        install_pof_group_rule_match_srcIp(sw1, sw1_tbl0, srcIp, sel_groupId, 12);
+    }
+
+    public void pofTestStop2() {
+        log.info("org.onosproject.pof.test.action Stopped");
+        remove_pof_group_tables(sw1, sel_key);
+
+        remove_pof_flow_table(sw1, sw1_tbl0);
+    }
+
+    public void pofTestStart3() {
+        log.info("org.onosproject.pof.test.action Started");
+
+        /** SRC(sw1): send flow table match ip{208, 32} */
+        sw1_tbl0 = send_pof_flow_table_match_SIP_at_SRC(sw1, "AddIntHeader");
+        /* rule1: send select group to add INT header. */
+        short weight1 = 1, weight2 = 2;
+        install_pof_select_group_rule(sw1, sw1_tbl0, srcIp, sel_key, sel_groupId, 12, weight1, weight2, "3f");
+        install_pof_group_rule_match_srcIp(sw1, sw1_tbl0, srcIp, sel_groupId, 12);
+        /* rule2: default rule, mask is 0x00000000 */
+        install_pof_output_flow_rule_match_default_ip_at_SRC(sw1, sw1_tbl0, srcIp, port2, 1);
+
+        /** INTER(sw2): send flow table match int_type{272, 16} */
+        sw2_tbl0 = send_pof_flow_table_match_INT_TYPE_at_INTER(sw2, "AddIntMetadata");
+        /* rule1: add_int_action. if revalidate path, with add_func_field action */
+        install_pof_add_int_field_rule_match_type(sw2, sw2_tbl0, int_type, port2, 12, "ff");   // "ff" means read mapInfo from pkts
+        /* rule2: default rule, mask is 0x0000 */
+        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw2, sw2_tbl0, int_type, port2, 1);
+
+        /** INTER(sw3): send flow table match int_type{272, 16} */
+        sw3_tbl0 = send_pof_flow_table_match_INT_TYPE_at_INTER(sw3, "AddIntMetadata");
+        /* rule1: add_int_action. if revalidate path, with add_func_field action */
+        install_pof_add_int_field_rule_match_type(sw3, sw3_tbl0, int_type, port2, 12, "ff");   // "ff" means read mapInfo from pkts
+        /* rule2: default rule, mask is 0x0000 */
+        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw3, sw2_tbl0, int_type, port2, 1);
+
+        /** INTER(sw4): send flow table match int_type{272, 16} */
+        sw4_tbl0 = send_pof_flow_table_match_INT_TYPE_at_INTER(sw4, "AddIntMetadata");
+        /* rule1: add_int_action. if revalidate path, with add_func_field action */
+        install_pof_add_int_field_rule_match_type(sw4, sw4_tbl0, int_type, port2, 12, "ff");   // "ff" means read mapInfo from pkts
+        /* rule2: default rule, mask is 0x0000 */
+        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw4, sw4_tbl0, int_type, port2, 1);
+
+        /** INTER(sw5): send flow table match int_type{272, 16} */
+        sw5_tbl0 = send_pof_flow_table_match_INT_TYPE_at_INTER(sw5, "AddIntMetadata");
+        /* rule1: add_int_action. if revalidate path, with add_func_field action */
+        install_pof_add_int_field_rule_match_type(sw5, sw5_tbl0, int_type, port2, 12, "ff");   // "ff" means read mapInfo from pkts
+        /* rule2: default rule, mask is 0x0000 */
+        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw5, sw5_tbl0, int_type, port2, 1);
+
+        /** SINK(sw6): send flow table match int_type{272, 16} */
+        sw6_tbl0 = send_pof_flow_table_match_INT_TYPE_at_INTER(sw6, "MirrorIntMetadata");
+        /* rule1: mirror INT packets to collector and usr */
+        install_pof_all_group_rule_match_type(sw6, sw6_tbl0, int_type, all_key, all_groupId, 1, port2, port3, "ff"); // "ff" means read mapInfo from pkts
+        install_pof_group_rule_match_type(sw6, sw2_tbl0, int_type, all_groupId, 12);
+        /* rule2: default rule, mask is 0x0000*/
+        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw6, sw6_tbl0, int_type, port2, 1);
+
+    }
+
+    public void pofTestStop3() {
+        /* remove group tables */
+        remove_pof_group_tables(sw1, sel_key);
+        remove_pof_group_tables(sw6, all_key);
+
+        /* remove flow tables */
+        remove_pof_flow_table(sw1, sw1_tbl0);
+        remove_pof_flow_table(sw2, sw2_tbl0);
+        remove_pof_flow_table(sw3, sw3_tbl0);
+        remove_pof_flow_table(sw4, sw4_tbl0);
+        remove_pof_flow_table(sw5, sw5_tbl0);
+        remove_pof_flow_table(sw6, sw6_tbl0);
         log.info("org.onosproject.test.action Stopped");
     }
 
-    public byte sendPofFlowTable(DeviceId deviceId, String table_name) {
+    public byte send_pof_flow_table_match_SIP_at_SRC(DeviceId deviceId, String table_name) {
         byte globeTableId = (byte) tableStore.getNewGlobalFlowTableId(deviceId, OFTableType.OF_MM_TABLE);
         byte tableId = tableStore.parseToSmallTableId(deviceId, globeTableId);
 
@@ -300,28 +313,28 @@ public class AppComponent {
         return tableId;
     }
 
-    public byte send_pof_flow_table_match_srcMAC(DeviceId deviceId, String table_name) {
+    public byte send_pof_flow_table_match_INT_TYPE_at_INTER(DeviceId deviceId, String table_name) {
         byte globeTableId = (byte) tableStore.getNewGlobalFlowTableId(deviceId, OFTableType.OF_MM_TABLE);
         byte tableId = tableStore.parseToSmallTableId(deviceId, globeTableId);
 
-        OFMatch20 srcMAC = new OFMatch20();
-        srcMAC.setFieldId((short) SMAC);
-        srcMAC.setFieldName("srcMAC");
-        srcMAC.setOffset((short) 48);
-        srcMAC.setLength((short) 48);
+        OFMatch20 int_type = new OFMatch20();
+        int_type.setFieldId(INT_TYPE);
+        int_type.setFieldName("int_type");
+        int_type.setOffset(INT_HEADER_BASE);
+        int_type.setLength(INT_HEADER_TYPE_LEN);
 
         ArrayList<OFMatch20> match20List = new ArrayList<>();
-        match20List.add(srcMAC);
+        match20List.add(int_type);
 
         OFFlowTable ofFlowTable = new OFFlowTable();
         ofFlowTable.setTableId(tableId);
         ofFlowTable.setTableName(table_name);
         ofFlowTable.setMatchFieldList(match20List);
         ofFlowTable.setMatchFieldNum((byte) 1);
-        ofFlowTable.setTableSize(4);
+        ofFlowTable.setTableSize(32);
         ofFlowTable.setTableType(OFTableType.OF_MM_TABLE);
         ofFlowTable.setCommand(null);
-        ofFlowTable.setKeyLength((short) 48);
+        ofFlowTable.setKeyLength(INT_HEADER_TYPE_LEN);
 
         FlowTable.Builder flowTable = DefaultFlowTable.builder()
                 .withFlowTable(ofFlowTable)
@@ -330,22 +343,72 @@ public class AppComponent {
                 .fromApp(appId);
 
         flowTableService.applyFlowTables(flowTable.build());
-
         log.info("table<{}> applied to device<{}> successfully.", tableId, deviceId.toString());
 
         return tableId;
     }
-
 
     public void remove_pof_flow_table(DeviceId deviceId, byte tableId) {
         flowRuleService.removeFlowRulesById(appId);  // for ovs-pof
         flowTableService.removeFlowTablesByTableId(deviceId, FlowTableId.valueOf(tableId));
     }
 
-    public void removeFlowTable(DeviceId deviceId, byte tableId) {
-        // will delete flow entries first, then delete flow tables
-        // flowTableService.removeFlowTablesByTableId(deviceId, FlowTableId.valueOf(tableId));
-        flowRuleService.removeFlowRulesById(appId);
+    public void install_pof_output_flow_rule_match_default_ip_at_SRC(DeviceId deviceId, byte tableId, String srcIP, int outport,
+                                                           int priority) {
+        // match
+        TrafficSelector.Builder trafficSelector = DefaultTrafficSelector.builder();
+        ArrayList<Criterion> matchList = new ArrayList<>();
+        matchList.add(Criteria.matchOffsetLength(SIP, (short) 208, (short) 32, srcIP, "00000000"));
+        trafficSelector.add(Criteria.matchOffsetLength(matchList));
+
+        // action
+        TrafficTreatment.Builder trafficTreamt = DefaultTrafficTreatment.builder();
+        List<OFAction> actions = new ArrayList<>();
+        OFAction action_output = DefaultPofActions.output((short) 0, (short) 0, (short) 0, outport).action();
+        actions.add(action_output);
+        trafficTreamt.add(DefaultPofInstructions.applyActions(actions));
+
+        // apply
+        long newFlowEntryId = flowTableStore.getNewFlowEntryId(deviceId, tableId);
+        FlowRule.Builder flowRule = DefaultFlowRule.builder()
+                .forDevice(deviceId)
+                .forTable(tableId)
+                .withSelector(trafficSelector.build())
+                .withTreatment(trafficTreamt.build())
+                .withPriority(priority)
+                .withCookie(newFlowEntryId)
+                .makePermanent();
+        flowRuleService.applyFlowRules(flowRule.build());
+        log.info("match_default_ip_at_SRC: apply to deviceId<{}> tableId<{}>, entryId=<{}>", deviceId.toString(), tableId, newFlowEntryId);
+    }
+
+    public void install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(DeviceId deviceId, byte tableId, String intType, int outport,
+                                                                     int priority) {
+        // match
+        TrafficSelector.Builder trafficSelector = DefaultTrafficSelector.builder();
+        ArrayList<Criterion> matchList = new ArrayList<>();
+        matchList.add(Criteria.matchOffsetLength(INT_TYPE, INT_HEADER_BASE, INT_HEADER_TYPE_LEN, intType, "0000"));
+        trafficSelector.add(Criteria.matchOffsetLength(matchList));
+
+        // action
+        TrafficTreatment.Builder trafficTreamt = DefaultTrafficTreatment.builder();
+        List<OFAction> actions = new ArrayList<>();
+        OFAction action_output = DefaultPofActions.output((short) 0, (short) 0, (short) 0, outport).action();
+        actions.add(action_output);
+        trafficTreamt.add(DefaultPofInstructions.applyActions(actions));
+
+        // apply
+        long newFlowEntryId = flowTableStore.getNewFlowEntryId(deviceId, tableId);
+        FlowRule.Builder flowRule = DefaultFlowRule.builder()
+                .forDevice(deviceId)
+                .forTable(tableId)
+                .withSelector(trafficSelector.build())
+                .withTreatment(trafficTreamt.build())
+                .withPriority(priority)
+                .withCookie(newFlowEntryId)
+                .makePermanent();
+        flowRuleService.applyFlowRules(flowRule.build());
+        log.info("match_default_type_at_INTER_or_SINK: apply to deviceId<{}> tableId<{}>, entryId=<{}>", deviceId.toString(), tableId, newFlowEntryId);
     }
 
     /**
@@ -391,16 +454,16 @@ public class AppComponent {
      * @actions add_int_field + output
      * @param deviceId such as "pof:000000000000000x"
      * @param tableId shoule be table0
-     * @param srcIP such as "0a000001", hex str
+     * @param int_type such as "0908", hex str
      * @param outport output port
      * @param priority 12
      * @param mapInfo hex str, one byte. such as '3f'
      */
-    public void install_pof_add_int_field_rule(DeviceId deviceId, byte tableId, String srcIP, int outport, int priority, String mapInfo) {
+    public void install_pof_add_int_field_rule_match_type(DeviceId deviceId, byte tableId, String int_type, int outport, int priority, String mapInfo) {
         // match
         TrafficSelector.Builder trafficSelector = DefaultTrafficSelector.builder();
         ArrayList<Criterion> matchList = new ArrayList<>();
-        matchList.add(Criteria.matchOffsetLength(SIP, (short) 208, (short) 32, srcIP, "ffffffff"));
+        matchList.add(Criteria.matchOffsetLength(INT_TYPE, INT_HEADER_BASE, INT_HEADER_TYPE_LEN, int_type, "ffff"));
         trafficSelector.add(Criteria.matchOffsetLength(matchList));
 
         // action
@@ -412,7 +475,68 @@ public class AppComponent {
          * if 'mapInfo' == 0xff, then read 'mapInfo' from packets.
          * at src node or single node, 'mapInfo' cannot be 0xff.
          */
-        OFAction action_add_int_field = DefaultPofActions.addField(int_field_id, INT_HEADER_DATA_OFF, (short) 16, mapInfo).action();
+        OFAction action_add_int_field = DefaultPofActions.addField(int_field_id, INT_HEADER_DATA_OFF, INT_HEADER_TYPE_LEN, mapInfo).action();
+        OFAction action_add_func_field = DefaultPofActions.addField(TEST, INT_DATA_DPID_END_OFF, (short) 8, funcByteHexStr(deviceId)).action();
+
+        // modify INT-ttl
+        OFMatch20 Field_INT_ttl =  new OFMatch20();
+        Field_INT_ttl.setFieldName("INT_ttl");
+        Field_INT_ttl.setFieldId(INT_TTL);
+        Field_INT_ttl.setOffset(INT_HEADER_TTL_OFF);
+        Field_INT_ttl.setLength(INT_HEADER_TTL_LEN);
+        OFAction action_inc_INT_ttl = DefaultPofActions.modifyField(Field_INT_ttl, 1).action();
+
+        OFAction action_output = DefaultPofActions.output((short) 0, (short) 0, (short) 0, outport).action();
+
+        actions.add(action_add_int_field);    /* add int metadata. */
+//        actions.add(action_add_func_field);  /* This action used to revalidate path. */
+        actions.add(action_inc_INT_ttl);      /* increment int_ttl field by 1 */
+        actions.add(action_output);
+        trafficTreamt.add(DefaultPofInstructions.applyActions(actions));
+        log.info("action_add_field: {}.", actions);
+
+        // apply
+        long newFlowEntryId = flowTableStore.getNewFlowEntryId(deviceId, tableId);
+        FlowRule.Builder flowRule = DefaultFlowRule.builder()
+                .forDevice(deviceId)
+                .forTable(tableId)
+                .withSelector(trafficSelector.build())
+                .withTreatment(trafficTreamt.build())
+                .withPriority(priority)
+                .withCookie(newFlowEntryId)
+                .makePermanent();
+        flowRuleService.applyFlowRules(flowRule.build());
+
+        log.info("install_pof_int_field_flow_rule_match_type: apply to deviceId<{}> tableId<{}>", deviceId.toString(), tableId);
+    }
+
+    /**
+     * test per INT scenarios. add INT metadata into packets per packet. adjust metadata type with 'mapInfo'
+     * @actions add_int_field + output
+     * @param deviceId such as "pof:000000000000000x"
+     * @param tableId shoule be table0
+     * @param srcIp such as "0a000001", hex str
+     * @param outport output port
+     * @param priority 12
+     * @param mapInfo hex str, one byte. such as '3f'
+     */
+    public void install_pof_add_int_field_rule_match_srcIp(DeviceId deviceId, byte tableId, String srcIp, int outport, int priority, String mapInfo) {
+        // match
+        TrafficSelector.Builder trafficSelector = DefaultTrafficSelector.builder();
+        ArrayList<Criterion> matchList = new ArrayList<>();
+        matchList.add(Criteria.matchOffsetLength(SIP, (short) 208, (short) 32, srcIp, "ffffffff"));
+        trafficSelector.add(Criteria.matchOffsetLength(matchList));
+
+        // action
+        short int_field_id = -1;
+        TrafficTreatment.Builder trafficTreamt = DefaultTrafficTreatment.builder();
+        List<OFAction> actions = new ArrayList<>();
+
+        /* 0b'00 00 00 00 = x | x | bandwidth | egress_time || ingress_time | out_port | in_port | dpid.
+         * if 'mapInfo' == 0xff, then read 'mapInfo' from packets.
+         * at src node or single node, 'mapInfo' cannot be 0xff.
+         */
+        OFAction action_add_int_field = DefaultPofActions.addField(int_field_id, INT_HEADER_DATA_OFF, INT_HEADER_TYPE_LEN, mapInfo).action();
         OFAction action_add_func_field = DefaultPofActions.addField(TEST, INT_DATA_DPID_END_OFF, (short) 8, funcByteHexStr(deviceId)).action();
 
         OFAction action_output = DefaultPofActions.output((short) 0, (short) 0, (short) 0, outport).action();
@@ -435,7 +559,7 @@ public class AppComponent {
                 .makePermanent();
         flowRuleService.applyFlowRules(flowRule.build());
 
-        log.info("install_pof_int_field_flow_rule: apply to deviceId<{}> tableId<{}>", deviceId.toString(), tableId);
+        log.info("install_pof_int_field_flow_rule_match_srcIP: apply to deviceId<{}> tableId<{}>", deviceId.toString(), tableId);
     }
 
     /**
@@ -453,7 +577,7 @@ public class AppComponent {
         install_pof_selective_int_group_rule(deviceId, tableId, srcIp, "abc", 0x16, 1, true, "def",
                 weight1, weight2, mapInfo);
 //        install_pof_select_group_rule(deviceId, tableId, "0a000001", "abc", 0x16, 1, true, "def");
-        install_pof_group_rule(deviceId, tableId, srcIp, 0x16, 1);
+        install_pof_group_rule_match_srcIp(deviceId, tableId, srcIp, 0x16, 1);
     }
 
     /**
@@ -882,7 +1006,7 @@ public class AppComponent {
         log.info("installDropFlowRule: apply to deviceId<{}> tableId<{}>", deviceId.toString(), tableId);
     }
 
-    public void install_pof_group_rule(DeviceId deviceId, byte tableId, String srcIP, int groupId, int priority) {
+    public void install_pof_group_rule_match_srcIp(DeviceId deviceId, byte tableId, String srcIP, int groupId, int priority) {
         // match
         TrafficSelector.Builder trafficSelector = DefaultTrafficSelector.builder();
         ArrayList<Criterion> matchList = new ArrayList<>();
@@ -907,142 +1031,192 @@ public class AppComponent {
                 .withCookie(newFlowEntryId)
                 .makePermanent();
         flowRuleService.applyFlowRules(flowRule.build());
+        log.info("group_rule_match_srcIp: apply to deviceId<{}> tableId<{}>", deviceId.toString(), tableId);
     }
 
-    public void install_pof_select_group_rule(DeviceId deviceId, byte tableId, String srcIP,String old_key_str, int groupId,
-                                              int priority, boolean is_add, String new_key_str) {
+
+    public void install_pof_group_rule_match_type(DeviceId deviceId, byte tableId, String int_type, int groupId, int priority) {
+        // match
+        TrafficSelector.Builder trafficSelector = DefaultTrafficSelector.builder();
+        ArrayList<Criterion> matchList = new ArrayList<>();
+        matchList.add(Criteria.matchOffsetLength(INT_TYPE, INT_HEADER_BASE, INT_HEADER_TYPE_LEN, int_type, "ffff"));
+        trafficSelector.add(Criteria.matchOffsetLength(matchList));
+
+        // action
+        TrafficTreatment.Builder trafficTreamt = DefaultTrafficTreatment.builder();
+        List<OFAction> actions = new ArrayList<>();
+        OFAction action_group = DefaultPofActions.group(groupId).action();
+        actions.add(action_group);
+        trafficTreamt.add(DefaultPofInstructions.applyActions(actions));
+
+        // apply
+        long newFlowEntryId = flowTableStore.getNewFlowEntryId(deviceId, tableId);
+        FlowRule.Builder flowRule = DefaultFlowRule.builder()
+                .forDevice(deviceId)
+                .forTable(tableId)
+                .withSelector(trafficSelector.build())
+                .withTreatment(trafficTreamt.build())
+                .withPriority(priority)
+                .withCookie(newFlowEntryId)
+                .makePermanent();
+        flowRuleService.applyFlowRules(flowRule.build());
+        log.info("group_rule_match_type: apply to deviceId<{}> tableId<{}>", deviceId.toString(), tableId);
+    }
+
+    public void install_pof_select_group_rule(DeviceId deviceId, byte tableId, String srcIP,String key_str, int groupId,
+                                              int priority, short weight1, short weight2, String mapInfo) {
         GroupId select_group_id = new GroupId(groupId);
 
-        byte[] keyData = old_key_str.getBytes();
+        byte[] keyData = key_str.getBytes();
         final GroupKey key = new DefaultGroupKey(keyData);
 
         // out_port
-        int port1 = 1;
-        int port2 = 2;
-        int port3 = 3;
-        int controller_port = (int) PortNumber.CONTROLLER.toLong();
         int port = port2;
 
         // bucket1: action = output
         TrafficTreatment.Builder trafficTreatment_bucket1 = DefaultTrafficTreatment.builder();
         List<OFAction> actions_bucket1 = new ArrayList<>();
-//        OFAction action_set_dstIp1 = DefaultPofActions.setField(DIP, (short) 240, (short) 32, "0a010102", "ffffffff").action();
         OFAction action_output1 = DefaultPofActions.output((short) 0, (short) 0, (short) 0, port).action();
-//        actions_bucket1.add(action_set_dstIp1);
         actions_bucket1.add(action_output1);
         trafficTreatment_bucket1.add(DefaultPofInstructions.applyActions(actions_bucket1));
 
         // bucket1: weight1 -- output
-        short weight1 = 1;
         GroupBucket bucket1 = DefaultGroupBucket.createSelectGroupBucket(trafficTreatment_bucket1.build(), weight1);
 
         // bucket2: action = add_int_field + output
         short int_field_id = -1;
         TrafficTreatment.Builder trafficTreatment_bucket2 = DefaultTrafficTreatment.builder();
         List<OFAction> actions_bucket2 = new ArrayList<>();
-//        OFAction action_set_dstIp2 = DefaultPofActions.setField(DIP, (short) 240, (short) 32, "0a020202", "ffffffff").action();
-//        OFAction action_add_field1 = DefaultPofActions.addField(TEST, (short) 272, (short) 16, "0908").action();
-        OFAction action_add_int_field = DefaultPofActions.addField(int_field_id, INT_HEADER_DATA_OFF, (short) 16, "3f").action();
+        OFAction action_add_int_field = DefaultPofActions.addField(int_field_id, INT_HEADER_DATA_OFF, (short) 16, mapInfo).action();
         OFAction action_output2 = DefaultPofActions.output((short) 0, (short) 0, (short) 0, port).action();
-//        actions_bucket2.add(action_set_dstIp2);
-//        actions_bucket2.add(action_add_field1);
         actions_bucket2.add(action_add_int_field);
         actions_bucket2.add(action_output2);
         trafficTreatment_bucket2.add(DefaultPofInstructions.applyActions(actions_bucket2));
 
         // bucket2: weight2 -- int-operation
-        short weight2 = 1;
         GroupBucket bucket2 = DefaultGroupBucket.createSelectGroupBucket(trafficTreatment_bucket2.build(), weight2);
 
         // buckets
         GroupBuckets select_group_buckets = new GroupBuckets(ImmutableList.of(bucket1, bucket2));
-//        GroupBuckets select_group_buckets = new GroupBuckets(ImmutableList.of(bucket1));
 
         // apply
         DefaultGroupDescription select_group = new DefaultGroupDescription(deviceId,
                 GroupDescription.Type.SELECT, select_group_buckets, key, select_group_id.id(), appId);
 
-        if (is_add) {  // add group
-            log.info("Add group table");
-            groupService.addGroup(select_group);
-        } else {      // mod group
-            log.info("Mod group table");
-            byte[] new_keyData = new_key_str.getBytes();
-            final GroupKey new_key = new DefaultGroupKey(new_keyData);
-            GroupBuckets new_buckets = new GroupBuckets(ImmutableList.of(bucket2));
-            groupService.setBucketsForGroup(deviceId, key, new_buckets, new_key, appId);
-        }
-
+        groupService.addGroup(select_group);
+        log.info("Add select group table");
     }
 
-    public void install_pof_all_group_rule(DeviceId deviceId, byte tableId, String srcIP,String old_key_str, int groupId,
-                                              int priority, boolean is_add, String new_key_str) {
+    /* used to test collector performance */
+    public void install_pof_all_group_rule_match_srcIP(DeviceId deviceId, byte tableId, String srcIP,String key_str, int groupId,
+                                              int priority, int usr_port, int collect_port, String mapInfo) {
         GroupId select_group_id = new GroupId(groupId);
 
-        byte[] keyData = old_key_str.getBytes();
+        byte[] keyData = key_str.getBytes();
         final GroupKey key = new DefaultGroupKey(keyData);
 
-        // out_port
-        int port1 = 1;
-        int port2 = 2;
-        int port3 = 3;
-        int controller_port = (int) PortNumber.CONTROLLER.toLong();
-        int port = port2;
-
-        // bucket1: controller_action will steal packets, so it should run as the last bucket.
-        short offset = -1;
-        int len = 14 * 8;
+        // bucket1: output
         TrafficTreatment.Builder trafficTreatment_bucket1 = DefaultTrafficTreatment.builder();
         List<OFAction> actions_bucket1 = new ArrayList<>();
-        OFAction action_set_dstIp1 = DefaultPofActions.setField(DIP, (short) 240, (short) 32, "0a010102", "ffffffff").action();
-//        OFAction action_delete_trunc_field = DefaultPofActions.deleteField(offset, len).action();
-        OFAction action_output1 = DefaultPofActions.output((short) 0, (short) 0, (short) 0, port1).action();
-//        actions_bucket1.add(action_set_dstIp1);
-//        actions_bucket1.add(action_delete_trunc_field);
+        OFAction action_output1 = DefaultPofActions.output((short) 0, (short) 0, (short) 0, usr_port).action();
         actions_bucket1.add(action_output1);
         trafficTreatment_bucket1.add(DefaultPofInstructions.applyActions(actions_bucket1));
 
         // bucket1: weight
-        short weight1 = 3;
         GroupBucket bucket1 = DefaultGroupBucket.createAllGroupBucket(trafficTreatment_bucket1.build());
 
-        // bucket2: action
+        // bucket2: action: del_int_field + output
+        short del_int_off = INT_HEADER_BASE;
+        short del_int_len = -1;   // means sw read 'mapInfo' from pkts and get the real deleted len.
+        short int_field_id = -1;
         TrafficTreatment.Builder trafficTreatment_bucket2 = DefaultTrafficTreatment.builder();
         List<OFAction> actions_bucket2 = new ArrayList<>();
-        OFAction action_set_dstIp2 = DefaultPofActions.setField(DIP, (short) 240, (short) 32, "0a020202", "ffffffff").action();
-        OFAction action_add_field1 = DefaultPofActions.addField(TEST, (short) 272, (short) 24, "090802").action();
-        OFAction action_add_dynamic_field1 = DefaultPofActions.addField((short) -1, (short) 272, (short) 16, "3f").action();
-        OFAction action_delete_field = DefaultPofActions.deleteField((short) 272, 16).action();
-        OFAction action_output2 = DefaultPofActions.output((short) 0, (short) 0, (short) 0, port3).action();
+//        OFAction action_set_dstIp2 = DefaultPofActions.setField(DIP, (short) 240, (short) 32, "0a020202", "ffffffff").action();
+//        OFAction action_add_field1 = DefaultPofActions.addField(TEST, (short) 272, (short) 24, "090802").action();
+        OFAction action_add_int_field = DefaultPofActions.addField(int_field_id, (short) 272, (short) 16, mapInfo).action();
+//        OFAction action_delete_field = DefaultPofActions.deleteField((short) 272, 16).action();
+//        OFAction action_del_int_field = DefaultPofActions.deleteField(del_int_off, del_int_len).action();
+        OFAction action_output2 = DefaultPofActions.output((short) 0, (short) 0, (short) 0, collect_port).action();
 //        actions_bucket2.add(action_set_dstIp2);
 //        actions_bucket2.add(action_delete_field);
-//        actions_bucket2.add(action_add_dynamic_field1);
+        actions_bucket2.add(action_add_int_field);   // {off, len} no meaning
 //        actions_bucket2.add(action_add_field1);
+//        actions_bucket2.add(action_del_int_field);
         actions_bucket2.add(action_output2);
         trafficTreatment_bucket2.add(DefaultPofInstructions.applyActions(actions_bucket2));
 
         // bucket2: weight
-        short weight2 = 5;
         GroupBucket bucket2 = DefaultGroupBucket.createAllGroupBucket(trafficTreatment_bucket2.build());
 
-        // buckets: controller_action will steal packets, so it should run as the last bucket.
+        // buckets:
         GroupBuckets all_group_buckets = new GroupBuckets(ImmutableList.of(bucket1, bucket2));
-//        GroupBuckets select_group_buckets = new GroupBuckets(ImmutableList.of(bucket1));
 
         // apply
         DefaultGroupDescription all_group = new DefaultGroupDescription(deviceId,
                 GroupDescription.Type.ALL, all_group_buckets, key, select_group_id.id(), appId);
 
-        if (is_add) {  // add group
-            log.info("Add group table");
-            groupService.addGroup(all_group);
-        } else {      // mod group
-            log.info("Mod group table");
-            byte[] new_keyData = new_key_str.getBytes();
-            final GroupKey new_key = new DefaultGroupKey(new_keyData);
-            GroupBuckets new_buckets = new GroupBuckets(ImmutableList.of(bucket2));
-            groupService.setBucketsForGroup(deviceId, key, new_buckets, new_key, appId);
-        }
+        groupService.addGroup(all_group);
+        log.info("Add all group table");
+
+    }
+
+    public void install_pof_all_group_rule_match_type(DeviceId deviceId, byte tableId, String int_type,String key_str, int groupId,
+                                           int priority, int usr_port, int collect_port, String mapInfo) {
+        GroupId select_group_id = new GroupId(groupId);
+
+        byte[] keyData = key_str.getBytes();
+        final GroupKey key = new DefaultGroupKey(keyData);
+
+        // bucket1: output
+        TrafficTreatment.Builder trafficTreatment_bucket1 = DefaultTrafficTreatment.builder();
+        List<OFAction> actions_bucket1 = new ArrayList<>();
+
+        // add-int-field
+        short int_field_id = -1;
+        OFAction action_add_int_field = DefaultPofActions.addField(int_field_id, INT_HEADER_DATA_OFF, INT_HEADER_TYPE_LEN, mapInfo).action(); // 'mapInfo' should be 0xff
+        OFAction action_add_func_field = DefaultPofActions.addField(TEST, INT_DATA_DPID_END_OFF, (short) 8, funcByteHexStr(deviceId)).action(); // for path revalidation
+
+        // modify INT-ttl
+        OFMatch20 Field_INT_ttl =  new OFMatch20();
+        Field_INT_ttl.setFieldName("INT_ttl");
+        Field_INT_ttl.setFieldId(INT_TTL);
+        Field_INT_ttl.setOffset(INT_HEADER_TTL_OFF);
+        Field_INT_ttl.setLength(INT_HEADER_TTL_LEN);
+        OFAction action_inc_INT_ttl = DefaultPofActions.modifyField(Field_INT_ttl, 1).action();
+
+        OFAction action_output1 = DefaultPofActions.output((short) 0, (short) 0, (short) 0, collect_port).action();
+        actions_bucket1.add(action_add_int_field);    /* add int metadata. */
+//        actions_bucket1.add(action_add_func_field);  /* This action used to revalidate path. */
+        actions_bucket1.add(action_inc_INT_ttl);      /* increment int_ttl field by 1 */
+        actions_bucket1.add(action_output1);
+        trafficTreatment_bucket1.add(DefaultPofInstructions.applyActions(actions_bucket1));
+
+        // bucket1: weight
+        GroupBucket bucket1 = DefaultGroupBucket.createAllGroupBucket(trafficTreatment_bucket1.build());
+
+        // bucket2: action: del_int_field + output
+        short del_int_off = INT_HEADER_BASE;
+        short del_int_len = -1;   // means sw read 'mapInfo' from pkts and get the real deleted len.
+        TrafficTreatment.Builder trafficTreatment_bucket2 = DefaultTrafficTreatment.builder();
+        List<OFAction> actions_bucket2 = new ArrayList<>();
+        OFAction action_del_int_field = DefaultPofActions.deleteField(del_int_off, del_int_len).action();
+        OFAction action_output2 = DefaultPofActions.output((short) 0, (short) 0, (short) 0, usr_port).action();
+        actions_bucket2.add(action_del_int_field);
+        actions_bucket2.add(action_output2);
+        trafficTreatment_bucket2.add(DefaultPofInstructions.applyActions(actions_bucket2));
+
+        // bucket2: weight
+        GroupBucket bucket2 = DefaultGroupBucket.createAllGroupBucket(trafficTreatment_bucket2.build());
+
+        // buckets:
+        GroupBuckets all_group_buckets = new GroupBuckets(ImmutableList.of(bucket1, bucket2));
+
+        // apply
+        DefaultGroupDescription all_group = new DefaultGroupDescription(deviceId,
+                GroupDescription.Type.ALL, all_group_buckets, key, select_group_id.id(), appId);
+
+        groupService.addGroup(all_group);
+        log.info("Add all group table");
 
     }
 
@@ -1186,41 +1360,6 @@ public class AppComponent {
         flowRuleService.applyFlowRules(flowRule.build());
     }
 
-    /**
-     * ==================== openflow test ==================
-     */
-    public void openflowTestStart() {
-        log.info("org.onosproject.openflow.test.action Started");
-        // deviceId = DeviceId.deviceId("pof:ffffffffcd0318d2");
-        deviceId = deviceService.getAvailableDevices().iterator().next().id();
-//        deviceService.changePortState(deviceId, PortNumber.portNumber(1), true);
-//        deviceService.changePortState(deviceId, PortNumber.portNumber(2), true);
-
-        /* send flow rules */
-        install_openflow_output_FlowRule(deviceId, tableId = 0, "10.0.0.1/32", 1);
-        install_openflow_output_FlowRule(deviceId, tableId = 0, "10.1.1.1/32", 3);
-
-        /* test grop table */
-//        installSelectGroupFlowRule(deviceId, tableId = 0, "abc",0x12);
-//        installGroupActionFlowRule(deviceId, tableId = 0, 0x12);   // if just send group_action, then OFBAC_BAD_OUT_GROUP
-
-        /* test second group table send */
-//        installSelectGroupFlowRule(deviceId, tableId = 0, "def", 0x24);
-//        installGroupActionFlowRule(deviceId, tableId = 0, 0x24);   // if just send group_action, then OFBAC_BAD_OUT_GROUP
-
-        /* test mod_nw_dst */
-//        install_openflow_mod_nw_dst_rule(deviceId, tableId = 0);
-    }
-
-    public void openflowTestStop() {
-        /* test group table */
-        removeGroupTables(deviceId, "abc");
-        removeGroupTables(deviceId, "def");
-
-        /* remove flow rule by appId */
-        removeFlowTable(deviceId, tableId = 0);
-        log.info("org.onosproject.openflow.test.action Stopped");
-    }
 
     public void install_openflow_output_FlowRule(DeviceId deviceId, byte tableId, String srcIP, int outport) {
         // match
@@ -1359,7 +1498,7 @@ public class AppComponent {
     }
 
     public String funcByteHexStr(DeviceId deviceId) {
-        String device = deviceId.toString().substring(18, 20);
+        String device = deviceId.toString().substring(18, 20);   /* for 'pof:000000000000000x', get '0x' */
         byte dpid = Integer.valueOf(device).byteValue();
         int k = 2, b = 1;
         byte y = (byte) (k * dpid + b);   // simple linear function
