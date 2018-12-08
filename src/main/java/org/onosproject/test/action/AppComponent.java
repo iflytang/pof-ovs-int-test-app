@@ -107,6 +107,10 @@ public class AppComponent {
     private int sel_groupId = 0x16;
     private String all_key = "def";
     private int all_groupId = 0x17;
+    private String sw2_sel_key = "abcd";
+    private int sw2_sel_groupId = 0x18;
+    private String sw2_all_key = "defg";
+    private int sw2_all_groupId = 0x19;
 
 
     /* match field values */
@@ -146,6 +150,11 @@ public class AppComponent {
     static final short INT_DATA_HOP_LATENCY_LEN  =    2 * 8;
     static final short INT_DATA_BANDWIDTH_LEN    =    4 * 8;
 
+    /* test path revalidation flag. */
+    private boolean TEST_PATH_RAVALIDATION = true;     // used at sw2
+    /* these two flag cannot be both true. */
+    private boolean SIMULATE_SEL_GROUP_TABLE = true;   // used at sw2
+    private boolean SIMULATE_ALL_GROUP_TABLE = false;  // used at sw3
 
     @Activate
     protected void activate() {
@@ -219,17 +228,37 @@ public class AppComponent {
         sw1_tbl0 = send_pof_flow_table_match_SIP_at_SRC(sw1, "AddIntHeader");
         /* rule1: send select group to add INT header. */
         short weight1 = 1, weight2 = 2;
-        install_pof_select_group_rule(sw1, sw1_tbl0, srcIp, sel_key, sel_groupId, 12, weight1, weight2, "3f");
+        install_pof_select_group_rule(sw1, sw1_tbl0, port3, port3, srcIp, sel_key, sel_groupId, 12, weight1, weight2, "3f");
         install_pof_group_rule_match_srcIp(sw1, sw1_tbl0, srcIp, sel_groupId, 12);
         /* rule2: default rule, mask is 0x00000000 */
-        install_pof_output_flow_rule_match_default_ip_at_SRC(sw1, sw1_tbl0, srcIp, port2, 1);
+        install_pof_output_flow_rule_match_default_ip_at_SRC(sw1, sw1_tbl0, srcIp, port3, 1);
 
         /** INTER(sw2): send flow table match int_type{272, 16} */
         sw2_tbl0 = send_pof_flow_table_match_INT_TYPE_at_INTER(sw2, "AddIntMetadata");
-        /* rule1: add_int_action. if revalidate path, with add_func_field action */
-        install_pof_add_int_field_rule_match_type(sw2, sw2_tbl0, int_type, port2, 12, "ff");   // "ff" means read mapInfo from pkts
-        /* rule2: default rule, mask is 0x0000 */
-        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw2, sw2_tbl0, int_type, port2, 1);
+        if (!TEST_PATH_RAVALIDATION) {  // normal
+            /* rule1: add_int_action. if revalidate path, with add_func_field action */
+            install_pof_add_int_field_rule_match_type(sw2, sw2_tbl0, int_type, port2, 12, "ff");   // "ff" means read mapInfo from pkts
+            /* rule2: default rule, mask is 0x0000 */
+            install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw2, sw2_tbl0, int_type, port2, 1);
+        } else { // assume that we mis-config group table here, so that we get two out_port to revalidate path. cannot be true both!
+
+            if (SIMULATE_SEL_GROUP_TABLE) {   /* simulate select group table */
+                /* rule1: send select group to add INT header. */
+                short weight21 = 1, weight22 = 2;
+                install_pof_select_group_rule_at_sw2(sw2, sw2_tbl0, port2, port3, int_type, sw2_sel_key, sw2_sel_groupId, 12, weight21, weight22, "3f");
+                install_pof_group_rule_match_type(sw2, sw2_tbl0, int_type, sw2_sel_groupId, 12);
+                /* rule2: default rule, mask is 0x0000 */
+                install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw2, sw2_tbl0, int_type, port2, 1);
+            }
+
+            if (SIMULATE_ALL_GROUP_TABLE) { /* simulate all group table */
+                /* rule1: mirror INT packets to collector and usr */
+                install_pof_all_group_rule_match_type_at_sw2(sw2, sw2_tbl0, int_type, sw2_all_key, sw2_all_groupId, 1, port2, port3, "ff"); // "ff" means read mapInfo from pkts
+                install_pof_group_rule_match_type(sw2, sw2_tbl0, int_type, sw2_all_groupId, 12);
+                /* rule2: default rule, mask is 0x0000*/
+                install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw6, sw6_tbl0, int_type, port2, 1);  // usr_port
+            }
+        }
 
         /** INTER(sw3): send flow table match int_type{272, 16} */
         sw3_tbl0 = send_pof_flow_table_match_INT_TYPE_at_INTER(sw3, "AddIntMetadata");
@@ -248,9 +277,9 @@ public class AppComponent {
         /** INTER(sw5): send flow table match int_type{272, 16} */
         sw5_tbl0 = send_pof_flow_table_match_INT_TYPE_at_INTER(sw5, "AddIntMetadata");
         /* rule1: add_int_action. if revalidate path, with add_func_field action */
-        install_pof_add_int_field_rule_match_type(sw5, sw5_tbl0, int_type, port2, 12, "ff");   // "ff" means read mapInfo from pkts
+        install_pof_add_int_field_rule_match_type(sw5, sw5_tbl0, int_type, port3, 12, "ff");   // "ff" means read mapInfo from pkts
         /* rule2: default rule, mask is 0x0000 */
-        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw5, sw5_tbl0, int_type, port2, 1);
+        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw5, sw5_tbl0, int_type, port3, 1);
 
         /** SINK(sw6): send flow table match int_type{272, 16} */
         sw6_tbl0 = send_pof_flow_table_match_INT_TYPE_at_INTER(sw6, "MirrorIntMetadata");
@@ -258,7 +287,7 @@ public class AppComponent {
         install_pof_all_group_rule_match_type(sw6, sw6_tbl0, int_type, all_key, all_groupId, 1, port2, port3, "ff"); // "ff" means read mapInfo from pkts
         install_pof_group_rule_match_type(sw6, sw2_tbl0, int_type, all_groupId, 12);
         /* rule2: default rule, mask is 0x0000*/
-        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw6, sw6_tbl0, int_type, port2, 1);
+        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw6, sw6_tbl0, int_type, port2, 1);  // usr_port
 
     }
 
@@ -266,6 +295,14 @@ public class AppComponent {
         /* remove group tables */
         remove_pof_group_tables(sw1, sel_key);
         remove_pof_group_tables(sw6, all_key);
+
+        /* for path revalidation scenario. */
+        if (SIMULATE_SEL_GROUP_TABLE) {
+            remove_pof_group_tables(sw2, sw2_sel_key);
+        }
+        if (SIMULATE_ALL_GROUP_TABLE) {
+            remove_pof_group_tables(sw2, sw2_all_key);
+        }
 
         /* remove flow tables */
         remove_pof_flow_table(sw1, sw1_tbl0);
@@ -1063,32 +1100,31 @@ public class AppComponent {
         log.info("group_rule_match_type: apply to deviceId<{}> tableId<{}>", deviceId.toString(), tableId);
     }
 
-    public void install_pof_select_group_rule(DeviceId deviceId, byte tableId, String srcIP,String key_str, int groupId,
-                                              int priority, short weight1, short weight2, String mapInfo) {
+    /* sel_group at sw1 (src_node), bucket2 do INT operation. */
+    public void install_pof_select_group_rule(DeviceId deviceId, byte tableId, int out_port1, int out_port2, String srcIP,
+                                              String key_str, int groupId, int priority,
+                                              short weight1, short weight2, String mapInfo) {
         GroupId select_group_id = new GroupId(groupId);
 
         byte[] keyData = key_str.getBytes();
         final GroupKey key = new DefaultGroupKey(keyData);
 
-        // out_port
-        int port = port2;
-
         // bucket1: action = output
         TrafficTreatment.Builder trafficTreatment_bucket1 = DefaultTrafficTreatment.builder();
         List<OFAction> actions_bucket1 = new ArrayList<>();
-        OFAction action_output1 = DefaultPofActions.output((short) 0, (short) 0, (short) 0, port).action();
+        OFAction action_output1 = DefaultPofActions.output((short) 0, (short) 0, (short) 0, out_port1).action();
         actions_bucket1.add(action_output1);
         trafficTreatment_bucket1.add(DefaultPofInstructions.applyActions(actions_bucket1));
 
         // bucket1: weight1 -- output
         GroupBucket bucket1 = DefaultGroupBucket.createSelectGroupBucket(trafficTreatment_bucket1.build(), weight1);
 
-        // bucket2: action = add_int_field + output
+        // bucket2: action = add_int_field + output, inc_int_ttl at data plane (src node).
         short int_field_id = -1;
         TrafficTreatment.Builder trafficTreatment_bucket2 = DefaultTrafficTreatment.builder();
         List<OFAction> actions_bucket2 = new ArrayList<>();
         OFAction action_add_int_field = DefaultPofActions.addField(int_field_id, INT_HEADER_DATA_OFF, (short) 16, mapInfo).action();
-        OFAction action_output2 = DefaultPofActions.output((short) 0, (short) 0, (short) 0, port).action();
+        OFAction action_output2 = DefaultPofActions.output((short) 0, (short) 0, (short) 0, out_port2).action();
         actions_bucket2.add(action_add_int_field);
         actions_bucket2.add(action_output2);
         trafficTreatment_bucket2.add(DefaultPofInstructions.applyActions(actions_bucket2));
@@ -1105,6 +1141,61 @@ public class AppComponent {
 
         groupService.addGroup(select_group);
         log.info("Add select group table");
+    }
+
+    /* sel_group at sw2, all buckets do INT operation. */
+    public void install_pof_select_group_rule_at_sw2(DeviceId deviceId, byte tableId, int out_port1, int out_port2, String srcIP,
+                                              String key_str, int groupId, int priority,
+                                              short weight1, short weight2, String mapInfo) {
+        GroupId select_group_id = new GroupId(groupId);
+
+        byte[] keyData = key_str.getBytes();
+        final GroupKey key = new DefaultGroupKey(keyData);
+
+        // modify INT-ttl
+        short int_field_id = -1;
+        OFMatch20 Field_INT_ttl =  new OFMatch20();
+        Field_INT_ttl.setFieldName("INT_ttl");
+        Field_INT_ttl.setFieldId(INT_TTL);
+        Field_INT_ttl.setOffset(INT_HEADER_TTL_OFF);
+        Field_INT_ttl.setLength(INT_HEADER_TTL_LEN);
+        OFAction action_inc_INT_ttl = DefaultPofActions.modifyField(Field_INT_ttl, 1).action();
+
+        // bucket1: action = add_int_field + inc_int_ttl + output:out_port1
+        TrafficTreatment.Builder trafficTreatment_bucket1 = DefaultTrafficTreatment.builder();
+        List<OFAction> actions_bucket1 = new ArrayList<>();
+        OFAction action_add_int_field1 = DefaultPofActions.addField(int_field_id, INT_HEADER_DATA_OFF, (short) 16, mapInfo).action();
+        OFAction action_output1 = DefaultPofActions.output((short) 0, (short) 0, (short) 0, out_port1).action();
+        actions_bucket1.add(action_add_int_field1);
+        actions_bucket1.add(action_inc_INT_ttl);
+        actions_bucket1.add(action_output1);
+        trafficTreatment_bucket1.add(DefaultPofInstructions.applyActions(actions_bucket1));
+
+        // bucket1: weight1 -- output
+        GroupBucket bucket1 = DefaultGroupBucket.createSelectGroupBucket(trafficTreatment_bucket1.build(), weight1);
+
+        // bucket2: action = add_int_field + inc_int_ttl + output:out_port2
+        TrafficTreatment.Builder trafficTreatment_bucket2 = DefaultTrafficTreatment.builder();
+        List<OFAction> actions_bucket2 = new ArrayList<>();
+        OFAction action_add_int_field2 = DefaultPofActions.addField(int_field_id, INT_HEADER_DATA_OFF, (short) 16, mapInfo).action();
+        OFAction action_output2 = DefaultPofActions.output((short) 0, (short) 0, (short) 0, out_port2).action();
+        actions_bucket2.add(action_add_int_field2);
+        actions_bucket2.add(action_inc_INT_ttl);
+        actions_bucket2.add(action_output2);
+        trafficTreatment_bucket2.add(DefaultPofInstructions.applyActions(actions_bucket2));
+
+        // bucket2: weight2 -- int-operation
+        GroupBucket bucket2 = DefaultGroupBucket.createSelectGroupBucket(trafficTreatment_bucket2.build(), weight2);
+
+        // buckets
+        GroupBuckets select_group_buckets = new GroupBuckets(ImmutableList.of(bucket1, bucket2));
+
+        // apply
+        DefaultGroupDescription select_group = new DefaultGroupDescription(deviceId,
+                GroupDescription.Type.SELECT, select_group_buckets, key, select_group_id.id(), appId);
+
+        groupService.addGroup(select_group);
+        log.info("Add select group table at sw2");
     }
 
     /* used to test collector performance */
@@ -1219,6 +1310,67 @@ public class AppComponent {
         log.info("Add all group table");
 
     }
+
+    /* sw2, all buckets do INT operation. */
+    public void install_pof_all_group_rule_match_type_at_sw2(DeviceId deviceId, byte tableId, String int_type,String key_str, int groupId,
+                                                      int priority, int usr_port, int collect_port, String mapInfo) {
+        GroupId select_group_id = new GroupId(groupId);
+
+        byte[] keyData = key_str.getBytes();
+        final GroupKey key = new DefaultGroupKey(keyData);
+
+        // bucket1: output
+        TrafficTreatment.Builder trafficTreatment_bucket1 = DefaultTrafficTreatment.builder();
+        List<OFAction> actions_bucket1 = new ArrayList<>();
+
+        // add-int-field
+        short int_field_id = -1;
+        OFAction action_add_int_field = DefaultPofActions.addField(int_field_id, INT_HEADER_DATA_OFF, INT_HEADER_TYPE_LEN, mapInfo).action(); // 'mapInfo' should be 0xff
+        OFAction action_add_func_field = DefaultPofActions.addField(TEST, INT_DATA_DPID_END_OFF, (short) 8, funcByteHexStr(deviceId)).action(); // for path revalidation
+
+        // modify INT-ttl
+        OFMatch20 Field_INT_ttl =  new OFMatch20();
+        Field_INT_ttl.setFieldName("INT_ttl");
+        Field_INT_ttl.setFieldId(INT_TTL);
+        Field_INT_ttl.setOffset(INT_HEADER_TTL_OFF);
+        Field_INT_ttl.setLength(INT_HEADER_TTL_LEN);
+        OFAction action_inc_INT_ttl = DefaultPofActions.modifyField(Field_INT_ttl, 1).action();
+
+        OFAction action_output1 = DefaultPofActions.output((short) 0, (short) 0, (short) 0, collect_port).action();
+        actions_bucket1.add(action_add_int_field);    /* add int metadata. */
+//        actions_bucket1.add(action_add_func_field);  /* This action used to revalidate path. */
+        actions_bucket1.add(action_inc_INT_ttl);      /* increment int_ttl field by 1 */
+        actions_bucket1.add(action_output1);
+        trafficTreatment_bucket1.add(DefaultPofInstructions.applyActions(actions_bucket1));
+
+        // bucket1: weight
+        GroupBucket bucket1 = DefaultGroupBucket.createAllGroupBucket(trafficTreatment_bucket1.build());
+
+        // bucket2: action: add_int_field + output
+        TrafficTreatment.Builder trafficTreatment_bucket2 = DefaultTrafficTreatment.builder();
+        List<OFAction> actions_bucket2 = new ArrayList<>();
+        OFAction action_output2 = DefaultPofActions.output((short) 0, (short) 0, (short) 0, usr_port).action();
+        actions_bucket2.add(action_add_int_field);    /* add int metadata. */
+//        actions_bucket2.add(action_add_func_field);  /* This action used to revalidate path. */
+        actions_bucket2.add(action_inc_INT_ttl);      /* increment int_ttl field by 1 */
+        actions_bucket2.add(action_output2);
+        trafficTreatment_bucket2.add(DefaultPofInstructions.applyActions(actions_bucket2));
+
+        // bucket2: weight
+        GroupBucket bucket2 = DefaultGroupBucket.createAllGroupBucket(trafficTreatment_bucket2.build());
+
+        // buckets:
+        GroupBuckets all_group_buckets = new GroupBuckets(ImmutableList.of(bucket1, bucket2));
+
+        // apply
+        DefaultGroupDescription all_group = new DefaultGroupDescription(deviceId,
+                GroupDescription.Type.ALL, all_group_buckets, key, select_group_id.id(), appId);
+
+        groupService.addGroup(all_group);
+        log.info("Add all group table at sw2");
+
+    }
+
 
     public void remove_pof_group_tables(DeviceId deviceId, String key_str) {
         byte[] keyData = key_str.getBytes();
