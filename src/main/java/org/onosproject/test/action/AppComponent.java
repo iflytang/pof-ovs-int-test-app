@@ -161,7 +161,7 @@ public class AppComponent {
     @Activate
     protected void activate() {
         appId = coreService.registerApplication("org.onosproject.test.action");
-        /* test INT collector performance, single node */
+        /* test INT collector performance, single node. all_group add_int_field to collector and user.  */
 //        pofTestStart1();
 
         /* test performance: no INT, per-packet INT, selective INT, single node */
@@ -1548,7 +1548,7 @@ public class AppComponent {
         // bucket1: weight
         GroupBucket bucket1 = DefaultGroupBucket.createAllGroupBucket(trafficTreatment_bucket1.build());
 
-        // bucket2: action: del_int_field + output
+        // bucket2: action: add_int_field + output
         short del_int_off = INT_HEADER_BASE;
         short del_int_len = -1;   // means sw read 'mapInfo' from pkts and get the real deleted len.
         short int_field_id = -1;
