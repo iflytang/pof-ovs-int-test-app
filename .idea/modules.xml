@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/pof-ovs-action-test-app.iml" filepath="$PROJECT_DIR$/pof-ovs-action-test-app.iml" />
+      <module fileurl="file://$PROJECT_DIR$/pof-ovs-int-test-app.iml" filepath="$PROJECT_DIR$/pof-ovs-int-test-app.iml" />
     </modules>
   </component>
 </project>

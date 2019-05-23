@@ -18,7 +18,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.onosproject</groupId>
-    <artifactId>pof-ovs-action-test-app</artifactId>
+    <artifactId>pof-ovs-int-test-app</artifactId>
     <version>1.0-SNAPSHOT</version>
     <packaging>bundle</packaging>
 
@@ -29,8 +29,8 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <onos.version>1.11.0-SNAPSHOT</onos.version>
 
-        <onos.app.name>org.onosproject.test.action</onos.app.name>
-        <onos.app.title>test ovs-pof action App</onos.app.title>
+        <onos.app.name>org.onosproject.int.action</onos.app.name>
+        <onos.app.title>test ovs-pof INT function App</onos.app.title>
         <onos.app.origin>INFINITE LAB, USTC.</onos.app.origin>
         <onos.app.category>default</onos.app.category>
         <onos.app.url>http://onosproject.org</onos.app.url>
