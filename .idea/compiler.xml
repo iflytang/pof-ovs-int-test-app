@@ -7,10 +7,12 @@
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
         <module name="pof-ovs-action-test-app" />
+        <module name="pof-ovs-int-test-app" />
       </profile>
     </annotationProcessing>
     <bytecodeTargetLevel>
       <module name="pof-ovs-action-test-app" target="1.8" />
+      <module name="pof-ovs-int-test-app" target="1.8" />
     </bytecodeTargetLevel>
   </component>
 </project>
