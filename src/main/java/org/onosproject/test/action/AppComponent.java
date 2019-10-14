@@ -155,7 +155,7 @@ public class AppComponent {
     static final short INT_DATA_BANDWIDTH_LEN    =    4 * 8;
 
     /* tsf: sleep how long. */
-    final static long TIME_INTERVAL = 100;    // in ms
+    final static long TIME_INTERVAL = 8000;    // in ms, scenario1: 8000ms, scenario2: 100ms
 
     /* test path revalidation flag. */
     private boolean TEST_PATH_RAVALIDATION = false;     // used at sw2
@@ -180,7 +180,7 @@ public class AppComponent {
         /* test selective INT precision or path revalidation, six node topology */
 //        pofTestStart3();
 
-        /* compare sel-INT and p4-sINT, six node topology */
+        /* compare sel-INT and p4-sINT, six node topology, for fig.15(a) */
         pofTestStart4();
     }
 
@@ -446,7 +446,7 @@ public class AppComponent {
         /** SRC(sw1): send flow table match ip{208, 32} */
         String mapInfo = "01";
         int sampling_rate_N = 25;           // for p4-sINT
-        short weight1 = 24, weight2 = 1;    // for Sel-INT, w2: add_int_header
+        short weight1 = 49, weight2 = 1;    // for Sel-INT, w2: add_int_header
         if (P4_sINT) {
             /* rule1: send add_int_field rule to insert INT header in 1/N, the key->len refers to 'N'.*/
             install_pof_add_int_field_rule_match_srcIp(sw1, sw1_tbl0, srcIp, port3, 12, mapInfo, sampling_rate_N);
@@ -511,17 +511,17 @@ public class AppComponent {
 
         // =========================================================================================
 
-        /** Evaluate to change sampling rate for p4-sINT at sw1 per 5s.
+        /** Evaluate to change sampling rate for p4-sINT at sw1.
          *  The trace is [50, 100, 50, 100, 50, 100, ...] Mpps, and sampling rate will be double for [1/50, 1/25, 1/12, 1/6, 1/3, 1].
          * */
         if (P4_sINT) {  // sampling_rate_N: 50 -> 25 -> 12 -> 6 -> 3 -> 1
             int i=0;
             log.info("P4-sINT, sampling_rate_N: {}, i:{}th", sampling_rate_N, i++);
-            try {
-                Thread.sleep(40000);
+           /* try {
+                Thread.sleep(80000);
             } catch (Exception e) {
                 e.printStackTrace();
-            }  // for alignment
+            }  // for alignment*/
             // wait
             try {
                 Thread.sleep(TIME_INTERVAL);
@@ -581,20 +581,20 @@ public class AppComponent {
         }
 
         /**
-         * Evaluate to change sampling rate for Sel-INT at sw1 per 5s.
+         * Evaluate to change sampling rate for Sel-INT at sw1.
          * The trace is [50, 100, 50, 100, 50, 100, ...] Mpps, and sampling rate will be [1/50, 1/25, 1/50, 1/25, ...].
          */
-        if (SEL_INT & false) {
+        if (SEL_INT) {
             String old_key, new_key;
             String[] sel_group_keys = {"abc", "bcde"};
             short[][] weights = {{49, 1}, {24, 1}};  // w1:w2, w2=add_int_header
-            try {
-                Thread.sleep(4000);
+            /*try {
+                Thread.sleep(8000);
             } catch (Exception e) {
                 e.printStackTrace();
-            }
-            for (int i=0; i<16; ) {
-                // mod group table at sw1 per 5s
+            }*/
+            for (int i=0; i<30; ) {
+                // mod group table at sw1
                 try {
                     Thread.sleep(TIME_INTERVAL);
                 } catch (Exception e) {
