@@ -155,7 +155,8 @@ public class AppComponent {
     static final short INT_DATA_BANDWIDTH_LEN    =    4 * 8;
 
     /* tsf: sleep how long. */
-    final static long TIME_INTERVAL = 8000;    // in ms, scenario1: 8000ms, scenario2: 100ms
+//    final static long TIME_INTERVAL = 8000;    // start4(), in ms, scenario1: 8000ms, scenario2: 100ms
+    final static long TIME_INTERVAL = 100;    // start5(), in ms, scenario1: 8000ms, scenario2: 100ms
 
     /* test path revalidation flag. */
     private boolean TEST_PATH_RAVALIDATION = false;     // used at sw2
@@ -164,9 +165,9 @@ public class AppComponent {
     private boolean SIMULATE_SEL_GROUP_TABLE = false;   // used at sw2
     private boolean SIMULATE_ALL_GROUP_TABLE = !SIMULATE_SEL_GROUP_TABLE;  // used at sw3
     /* to adjust the sampling rate at INT source node. */
-    private boolean P4_sINT = false;                         // used at sw1 for P4-sINT
+    private boolean P4_sINT = true;                         // used at sw1 for P4-sINT
     private boolean P4_ECMP = true;            // used at sw2 for P4-sINT
-    private boolean SEL_INT = true;                          // used at sw1 for Sel-INT
+    private boolean SEL_INT = false;                          // used at sw1 for Sel-INT
 
     @Activate
     protected void activate() {
@@ -181,7 +182,10 @@ public class AppComponent {
 //        pofTestStart3();
 
         /* compare sel-INT and p4-sINT, six node topology, for fig.15(a) */
-        pofTestStart4();
+//        pofTestStart4();
+
+        /* compare sel-INT and p4-sINT, six node topology, for fig.15(b) */
+        pofTestStart5();
     }
 
     @Deactivate
@@ -189,7 +193,8 @@ public class AppComponent {
 //        pofTestStop1();
 //        pofTestStop2();
 //        pofTestStop3();
-        pofTestStop4();
+//        pofTestStop4();
+        pofTestStop5();
     }
 
     /**
@@ -445,7 +450,7 @@ public class AppComponent {
 
         /** SRC(sw1): send flow table match ip{208, 32} */
         String mapInfo = "01";
-        int sampling_rate_N = 25;           // for p4-sINT
+        int sampling_rate_N = 50;           // for p4-sINT
         short weight1 = 49, weight2 = 1;    // for Sel-INT, w2: add_int_header
         if (P4_sINT) {
             /* rule1: send add_int_field rule to insert INT header in 1/N, the key->len refers to 'N'.*/
@@ -613,6 +618,204 @@ public class AppComponent {
     }
 
     public void pofTestStop4() {
+        /* remove group tables */
+        if (SEL_INT) {
+            remove_pof_group_tables(sw1, sel_key);
+            remove_pof_group_tables(sw1, "bcde");
+        }
+        remove_pof_group_tables(sw6, all_key);
+
+        /* for path revalidation scenario only. */
+        if (SIMULATE_SEL_GROUP_TABLE) {
+            remove_pof_group_tables(sw2, sw2_sel_key);
+            remove_pof_group_tables(sw2, sw2_sel_key2);
+        }
+        if (SIMULATE_ALL_GROUP_TABLE) {
+            remove_pof_group_tables(sw2, sw2_all_key);
+        }
+
+        /* remove flow tables */
+        remove_pof_flow_table(sw1, sw1_tbl0);
+        remove_pof_flow_table(sw2, sw2_tbl0);
+        remove_pof_flow_table(sw3, sw3_tbl0);
+
+        if (TEST_PATH_RAVALIDATION) {
+            remove_pof_flow_table(sw4, sw4_tbl0);
+        }
+
+        remove_pof_flow_table(sw5, sw5_tbl0);
+        remove_pof_flow_table(sw6, sw6_tbl0);
+        log.info("org.onosproject.test.action Stopped: all flow/group tables are removed!");
+    }
+
+    public void pofTestStart5() {
+        log.info("org.onosproject.pof.test.action Started");
+
+        sw1_tbl0 = send_pof_flow_table_match_SIP_at_SRC(sw1, "AddIntHeader");
+        sw2_tbl0 = send_pof_flow_table_match_INT_TYPE_at_INTER(sw2, "AddIntMetadata");
+        sw3_tbl0 = send_pof_flow_table_match_INT_TYPE_at_INTER(sw3, "AddIntMetadata");
+
+        if (TEST_PATH_RAVALIDATION) {
+            sw4_tbl0 = send_pof_flow_table_match_INT_TYPE_at_INTER(sw4, "AddIntMetadata");
+        }
+
+        sw5_tbl0 = send_pof_flow_table_match_INT_TYPE_at_INTER(sw5, "AddIntMetadata");
+        sw6_tbl0 = send_pof_flow_table_match_INT_TYPE_at_INTER(sw6, "MirrorIntMetadata");
+
+        // wait 1s
+        try {
+            Thread.sleep(1000);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        /** SRC(sw1): send flow table match ip{208, 32} */
+        String mapInfo = "01";
+        int sampling_rate_N = 50;           // for p4-sINT
+        short weight1 = 49, weight2 = 1;    // for Sel-INT, w2: add_int_header
+        if (P4_sINT) {
+            /* rule1: send add_int_field rule to insert INT header in 1/N, the key->len refers to 'N'.*/
+            install_pof_add_int_field_rule_match_srcIp(sw1, sw1_tbl0, srcIp, port3, 12, mapInfo, sampling_rate_N);
+        }
+        if (SEL_INT) {
+            /* rule1: send select group to add INT header. w1: output; w2: add_int_header.*/
+            install_pof_select_group_rule(sw1, sw1_tbl0, port3, port3, srcIp, sel_key, sel_groupId, 12, weight1, weight2, mapInfo);
+            install_pof_group_rule_match_srcIp(sw1, sw1_tbl0, srcIp, sel_groupId, 12);
+        }
+        /* rule2: default rule, mask is 0x00000000 */
+//        install_pof_output_flow_rule_match_default_ip_at_SRC(sw1, sw1_tbl0, srcIp, port3, 1);
+
+        /** INTER(sw2): send flow table match int_type{272, 16} */
+        if (!TEST_PATH_RAVALIDATION) {  // normal
+            /* rule1: add_int_action. if revalidate path, with add_func_field action */
+            install_pof_add_int_field_rule_match_type(sw2, sw2_tbl0, int_type, port2, 12, "ff");   // "ff" means read mapInfo from pkts
+            /* rule2: default rule, mask is 0x0000 */
+            install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw2, sw2_tbl0, int_type, port2, 1);
+        } else { // assume that we mis-config group table here, so that we get two out_port to revalidate path. cannot be true both!
+
+            log.info("test path revalidation.");
+            if (SIMULATE_SEL_GROUP_TABLE) {   /* simulate select group table */
+                /* rule1: send select group to add INT header. w21: output; w22: add_int_header. */
+                short weight21 = 5, weight22 = 5;
+                install_pof_select_group_rule_at_sw2(sw2, sw2_tbl0, port2, port3, int_type, sw2_sel_key, sw2_sel_groupId, 12, weight21, weight22, "ff");
+                install_pof_group_rule_match_type(sw2, sw2_tbl0, int_type, sw2_sel_groupId, 12);
+                /* rule2: default rule, mask is 0x0000 */
+                install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw2, sw2_tbl0, int_type, port2, 1);
+            }
+        }
+
+        /** INTER(sw3): send flow table match int_type{272, 16} */
+        /* rule1: add_int_action. if revalidate path, with add_func_field action */
+        install_pof_add_int_field_rule_match_type(sw3, sw3_tbl0, int_type, port2, 12, "ff");   // "ff" means read mapInfo from pkts
+        /* rule2: default rule, mask is 0x0000 */
+        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw3, sw2_tbl0, int_type, port2, 1);
+
+        /* if we need revalidate path, then we should send flow rule to sw4. */
+        if (TEST_PATH_RAVALIDATION) {
+            /** INTER(sw4): send flow table match int_type{272, 16} */
+            /* rule1: add_int_action. if revalidate path, with add_func_field action */
+            install_pof_add_int_field_rule_match_type(sw4, sw4_tbl0, int_type, port2, 12, "ff");   // "ff" means read mapInfo from pkts
+            /* rule2: default rule, mask is 0x0000 */
+            install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw4, sw4_tbl0, int_type, port2, 1);
+        }
+
+        /** INTER(sw5): send flow table match int_type{272, 16} */
+        /* rule1: add_int_action. if revalidate path, with add_func_field action */
+        install_pof_add_int_field_rule_match_type(sw5, sw5_tbl0, int_type, port3, 12, "ff");   // "ff" means read mapInfo from pkts
+        /* rule2: default rule, mask is 0x0000 */
+        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw5, sw5_tbl0, int_type, port3, 1);
+
+        /** SINK(sw6): send flow table match int_type{272, 16} */
+        /* rule1: mirror INT packets to collector and usr */
+        install_pof_all_group_rule_match_type(sw6, sw6_tbl0, int_type, all_key, all_groupId, 12, port2, port3, "ff"); // "ff" means read mapInfo from pkts
+        install_pof_group_rule_match_type(sw6, sw2_tbl0, int_type, all_groupId, 12);
+        /* rule2: default rule, mask is 0x0000*/
+        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw6, sw6_tbl0, int_type, port2, 1);  // usr_port
+
+        /** SINK(sw6): trick, we don't mirror for performance consideration. */
+//        install_pof_add_int_field_rule_match_type(sw6, sw6_tbl0, int_type, port3, 12, "ff");   // "ff" means read mapInfo from pkts
+
+        // =========================================================================================
+
+        /** Evaluate to change sampling rate for p4-sINT at sw1.
+         *  The trace is [50, 100, 50, 100, 50, 100, ...] Mpps, and sampling rate will be double for [1/50, 1/25, 1/12, 1/6, 1/3, 1].
+         * */
+        if (P4_sINT) {  // sampling_rate_N: 50 -> 25 -> 12 -> 6 -> 3 -> 1
+            int i=0;
+            log.info("P4-sINT, sampling_rate_N: {}, i:{}th", sampling_rate_N, i++);
+            try {
+                Thread.sleep(60000);    // run 60s, then to adjust sw_id
+            } catch (Exception e) {
+                e.printStackTrace();
+            }  // for alignment
+            // wait
+            try {
+                Thread.sleep(TIME_INTERVAL);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+            sampling_rate_N = 25;
+            install_pof_add_int_field_rule_match_srcIp(sw1, sw1_tbl0, srcIp, port3, 12, mapInfo, sampling_rate_N);
+            log.info("P4-sINT, sampling_rate_N: {}, i:{}th", sampling_rate_N, i++);
+            // wait
+            try {
+                Thread.sleep(TIME_INTERVAL);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+            sampling_rate_N = 12;
+            install_pof_add_int_field_rule_match_srcIp(sw1, sw1_tbl0, srcIp, port3, 12, mapInfo, sampling_rate_N);
+            log.info("P4-sINT, sampling_rate_N: {}, i:{}th", sampling_rate_N, i++);
+            // wait
+            try {
+                Thread.sleep(TIME_INTERVAL);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+            sampling_rate_N = 6;
+            install_pof_add_int_field_rule_match_srcIp(sw1, sw1_tbl0, srcIp, port3, 12, mapInfo, sampling_rate_N);
+            log.info("P4-sINT, sampling_rate_N: {}, i:{}th", sampling_rate_N, i++);
+            // wait
+            try {
+                Thread.sleep(TIME_INTERVAL);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+            sampling_rate_N = 3;
+            install_pof_add_int_field_rule_match_srcIp(sw1, sw1_tbl0, srcIp, port3, 12, mapInfo, sampling_rate_N);
+            log.info("P4-sINT, sampling_rate_N: {}, i:{}th", sampling_rate_N, i++);
+            try {
+                Thread.sleep(TIME_INTERVAL);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+            sampling_rate_N = 1;
+            install_pof_add_int_field_rule_match_srcIp(sw1, sw1_tbl0, srcIp, port3, 12, mapInfo, sampling_rate_N);
+            log.info("P4-sINT, sampling_rate_N: {}, i:{}th", sampling_rate_N, i);
+        }
+
+        /** Evaluate to change sampling rate for P4-sINT at sw1 per 100ms when ECMP (sw_id changes)
+         *  The trace is stable at 1 Mpps, and sampling rate will be [1/50, 1/25, 1/12, 1/6, 1/3, 1].
+         * */
+        if (P4_ECMP) {
+
+        }
+
+        /**
+         * Evaluate to change sampling rate for Sel-INT at sw1.
+         * The trace is 1 Mpps, and sampling rate will be [1/50, ...].
+         */
+        if (SEL_INT) {
+            // do nothing, maintain the sampling rate = w1:w2
+        }
+    }
+
+    public void pofTestStop5() {
         /* remove group tables */
         if (SEL_INT) {
             remove_pof_group_tables(sw1, sel_key);
