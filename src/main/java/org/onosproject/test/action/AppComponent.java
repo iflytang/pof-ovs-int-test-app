@@ -165,9 +165,10 @@ public class AppComponent {
     private boolean SIMULATE_SEL_GROUP_TABLE = false;   // used at sw2
     private boolean SIMULATE_ALL_GROUP_TABLE = !SIMULATE_SEL_GROUP_TABLE;  // used at sw3
     /* to adjust the sampling rate at INT source node. */
-    private boolean P4_sINT = true;                         // used at sw1 for P4-sINT
+    private boolean P4_sINT = false;                         // used at sw1 for P4-sINT
     private boolean P4_ECMP = true;            // used at sw2 for P4-sINT
-    private boolean SEL_INT = false;                          // used at sw1 for Sel-INT
+    private boolean SEL_INT = true;                          // used at sw1 for Sel-INT
+    private boolean BENCHMARK = false;
 
     @Activate
     protected void activate() {
@@ -182,10 +183,10 @@ public class AppComponent {
 //        pofTestStart3();
 
         /* compare sel-INT and p4-sINT, six node topology, for fig.15(a) */
-//        pofTestStart4();
+        pofTestStart4();
 
         /* compare sel-INT and p4-sINT, six node topology, for fig.15(b) */
-        pofTestStart5();
+//        pofTestStart5();
     }
 
     @Deactivate
@@ -193,8 +194,8 @@ public class AppComponent {
 //        pofTestStop1();
 //        pofTestStop2();
 //        pofTestStop3();
-//        pofTestStop4();
-        pofTestStop5();
+        pofTestStop4();
+//        pofTestStop5();
     }
 
     /**
@@ -449,9 +450,9 @@ public class AppComponent {
         }
 
         /** SRC(sw1): send flow table match ip{208, 32} */
-        String mapInfo = "01";
+        String mapInfo = "20";
         int sampling_rate_N = 50;           // for p4-sINT
-        short weight1 = 49, weight2 = 1;    // for Sel-INT, w2: add_int_header
+        short weight1 = 11, weight2 = 1;    // for Sel-INT, w2: add_int_header
         if (P4_sINT) {
             /* rule1: send add_int_field rule to insert INT header in 1/N, the key->len refers to 'N'.*/
             install_pof_add_int_field_rule_match_srcIp(sw1, sw1_tbl0, srcIp, port3, 12, mapInfo, sampling_rate_N);
@@ -462,7 +463,7 @@ public class AppComponent {
             install_pof_group_rule_match_srcIp(sw1, sw1_tbl0, srcIp, sel_groupId, 12);
         }
         /* rule2: default rule, mask is 0x00000000 */
-//        install_pof_output_flow_rule_match_default_ip_at_SRC(sw1, sw1_tbl0, srcIp, port3, 1);
+        install_pof_output_flow_rule_match_default_ip_at_SRC(sw1, sw1_tbl0, srcIp, port3, 1);
 
         /** INTER(sw2): send flow table match int_type{272, 16} */
         if (!TEST_PATH_RAVALIDATION) {  // normal
@@ -589,7 +590,7 @@ public class AppComponent {
          * Evaluate to change sampling rate for Sel-INT at sw1.
          * The trace is [50, 100, 50, 100, 50, 100, ...] Mpps, and sampling rate will be [1/50, 1/25, 1/50, 1/25, ...].
          */
-        if (SEL_INT) {
+        if (SEL_INT & BENCHMARK) {
             String old_key, new_key;
             String[] sel_group_keys = {"abc", "bcde"};
             short[][] weights = {{49, 1}, {24, 1}};  // w1:w2, w2=add_int_header
