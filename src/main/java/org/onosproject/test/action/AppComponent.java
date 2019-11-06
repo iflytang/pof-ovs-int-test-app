@@ -159,7 +159,7 @@ public class AppComponent {
     final static long TIME_INTERVAL = 100;    // start5(), in ms, scenario1: 8000ms, scenario2: 100ms
 
     /* test path revalidation flag. */
-    private boolean TEST_PATH_RAVALIDATION = false;     // used at sw2
+    private boolean TEST_PATH_RAVALIDATION = true;     // used at sw2
     private boolean TEST_PATH_FUNCTION = false;         // used by all sw.
     /* these two flag cannot be both true. */
     private boolean SIMULATE_SEL_GROUP_TABLE = false;   // used at sw2
@@ -169,6 +169,9 @@ public class AppComponent {
     private boolean P4_ECMP = true;            // used at sw2 for P4-sINT
     private boolean SEL_INT = true;                          // used at sw1 for Sel-INT
     private boolean BENCHMARK = false;
+
+    /* to simulate intentional attack. for fig.18 */
+    private boolean SIMULATE_ATTACK = true;
 
     @Activate
     protected void activate() {
@@ -180,10 +183,10 @@ public class AppComponent {
 //        pofTestStart2();
 
         /* test selective INT precision or path revalidation, six node topology */
-//        pofTestStart3();
+        pofTestStart3();
 
         /* compare sel-INT and p4-sINT, six node topology, for fig.15(a) */
-        pofTestStart4();
+//        pofTestStart4();
 
         /* compare sel-INT and p4-sINT, six node topology, for fig.15(b) */
 //        pofTestStart5();
@@ -193,8 +196,8 @@ public class AppComponent {
     protected void deactivate() {
 //        pofTestStop1();
 //        pofTestStop2();
-//        pofTestStop3();
-        pofTestStop4();
+        pofTestStop3();
+//        pofTestStop4();
 //        pofTestStop5();
     }
 
@@ -269,7 +272,7 @@ public class AppComponent {
         /** SRC(sw1): send flow table match ip{208, 32} */
 //        sw1_tbl0 = send_pof_flow_table_match_SIP_at_SRC(sw1, "AddIntHeader");
         /* rule1: send select group to add INT header. w1: output; w2: add_int_header.*/
-        short weight1 = 24, weight2 = 1;
+        short weight1 = 7, weight2 = 1;
         String mapInfo = "01";
         install_pof_select_group_rule(sw1, sw1_tbl0, port3, port3, srcIp, sel_key, sel_groupId, 12, weight1, weight2, mapInfo);
         install_pof_group_rule_match_srcIp(sw1, sw1_tbl0, srcIp, sel_groupId, 12);
@@ -321,6 +324,20 @@ public class AppComponent {
                 /* rule2: default rule, mask is 0x0000*/
 //                install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw6, sw6_tbl0, int_type, port2, 1);  // usr_port
             }
+
+            if (SIMULATE_ATTACK) {   /* simulate select group table */
+                /* rule1: send select group to add INT header at sw2. w21: add_int_field; w22: add_int_field. */
+                short weight21 = 5, weight22 = 5;
+                install_pof_select_group_rule_at_sw2(sw2, sw2_tbl0, port2, port2, int_type, sw2_sel_key, sw2_sel_groupId, 12, weight21, weight22, "ff");
+                install_pof_group_rule_match_type(sw2, sw2_tbl0, int_type, sw2_sel_groupId, 12);
+                try {
+                    Thread.sleep(500);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                /* rule2: default rule, mask is 0x0000 */
+                install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw2, sw2_tbl0, int_type, port2, 1);
+            }
         }
 
         /** INTER(sw3): send flow table match int_type{272, 16} */
@@ -363,13 +380,22 @@ public class AppComponent {
         /** SINK(sw6): trick, we don't mirror for performance consideration. */
 //        install_pof_add_int_field_rule_match_type(sw6, sw6_tbl0, int_type, port3, 12, "ff");   // "ff" means read mapInfo from pkts
 
+        /**
+         * BEGIN TO SIMULATE ATTACK by CHANGING THE SELECT_TABLE at sw2
+         */
         /* simulate the intentional attack. */
-        boolean SIMULATE_ATTACK = false;
         if (SIMULATE_ATTACK) {
+            /* sleep 25s for original mapInfo. */
+            try {
+                Thread.sleep(25000);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
             String old_key, new_key;
             String[] sel_group_keys = {"abc", "bcde"};
             String[] mapInfo_array = {"03", "01"};   // we make 0x03 run 5s, 0x01 runs 25s, 30s as a big period
-            for (int i = 0; i < 8; ) {
+            for (int i = 0; i < 20; ) {
                 if (i % 2 == 0) {
                     try {
                         Thread.sleep(25000);
@@ -378,14 +404,15 @@ public class AppComponent {
                     }
                 } else {
                     try {
-                        Thread.sleep(5000);
+                        Thread.sleep(7000);
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
                 }
 
-                if (i == 3) {   // at i=3, we change output port (port2->port3) at sw2
-                    install_mod_pof_select_group_rule_at_sw2(sw2, sw2_tbl0, port3, port3, int_type, sw2_sel_key, sw2_sel_key2, sw2_sel_groupId, 12, weight1, weight2, "ff");
+                if (i == 5) {   // at i=3, we change output port (port2->port3) at sw2, two buckets add_int_field
+                    short weight21=5, weight22=5;
+                    install_mod_pof_select_group_rule_at_sw2(sw2, sw2_tbl0, port3, port3, int_type, sw2_sel_key, sw2_sel_key2, sw2_sel_groupId, 12, weight21, weight22, "ff");
                 }
 
                 mapInfo = mapInfo_array[i % 2];
@@ -406,7 +433,7 @@ public class AppComponent {
         remove_pof_group_tables(sw6, all_key);
 
         /* for path revalidation scenario only. */
-        if (SIMULATE_SEL_GROUP_TABLE) {
+        if (SIMULATE_SEL_GROUP_TABLE || SIMULATE_ATTACK) {
             remove_pof_group_tables(sw2, sw2_sel_key);
             remove_pof_group_tables(sw2, sw2_sel_key2);
         }
