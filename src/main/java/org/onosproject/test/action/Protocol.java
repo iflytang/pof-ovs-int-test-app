@@ -92,4 +92,26 @@ public class Protocol {
      */
     final static String all_key = "def";
     final static int all_groupId = 0x17;
+
+    /**
+     * forwarding behaviors (2B), bitmap and its field id.
+     */
+    final static short FWD_MOD_SIP_BITMAP = 0x0001;
+    final static short FWD_MOD_DIP_BITMAP = 0x0002;
+    final static short FWD_MOD_SMAC_BITMAP = 0x0004;
+    final static short FWD_MOD_DMAC_BITMAP = 0x0008;
+
+    final static short FWD_ALL_GROUP_MIRROR_BITMAP = 0x0010;
+    final static short FWD_DEL_INT_FIELDS_BITMAP = 0x0020;
+    final static short FWD_ADD_INT_FIELDS_BITMAP = 0x0040;
+
+    final static short FWD_MOD_SIP_FIELD_ID = (short) 0xff01;
+    final static short FWD_MOD_DIP_FIELD_ID  = (short) 0xff02;
+    final static short FWD_MOD_SMAC_FIELD_ID  = (short) 0xff04;
+    final static short FWD_MOD_DMAC_FIELD_ID  = (short) 0xff08;
+
+    final static short FWD_ALL_GROUP_MIRROR_FIELD_ID  = (short) 0xff10;
+    final static short FWD_DEL_INT_HDR_FIELD_ID  = INT_FIELD_ID;
+    final static short FWD_ADD_INT_HDR_FIELD_ID  = INT_FIELD_ID;
+
 }
