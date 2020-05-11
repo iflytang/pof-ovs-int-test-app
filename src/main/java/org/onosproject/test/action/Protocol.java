@@ -69,8 +69,8 @@ public class Protocol {
      * INT header fields in bits.
      */
     final static short INT_DATA_DPID_LEN = 4 * 8;
-    final static short INT_DATA_IN_PORT_LEN = 2 * 8;
-    final static short INT_DATA_OUT_PORT_LEN = 2 * 8;
+    final static short INT_DATA_IN_PORT_LEN = 4 * 8;
+    final static short INT_DATA_OUT_PORT_LEN = 4 * 8;
     final static short INT_DATA_INGRESS_TIME_LEN = 8 * 8;
     final static short INT_DATA_HOP_LATENCY_LEN = 4 * 8;
 
@@ -78,7 +78,7 @@ public class Protocol {
     final static short INT_DATA_N_PACKETS_LEN = 8 * 8;
     final static short INT_DATA_N_BYTES_LEN = 8 * 8;
     final static short INT_DATA_QUEUE_LEN = 4 * 8;
-    final static short INT_DATA_FWD_ACTS = 2 * 8;
+    final static short INT_DATA_FWD_ACTS = 4 * 8;
 
     /**
      * field values.
