@@ -113,13 +113,52 @@ public class AppComponent {
     @Activate
     protected void activate() {
         appId = coreService.registerApplication("org.onosproject.int.action");
-        pofTestStart_INT_Insertion_for_path();
+
+        pofTestStart_INT_Insertion_for_single_node();
+
+//        pofTestStart_INT_Insertion_for_path();
     }
 
 
     @Deactivate
     protected void deactivate() {
-        pofTestStop_INT_Insertion_for_path();
+
+        pofTestStop_INT_Insertion_for_single_node();
+
+//        pofTestStop_INT_Insertion_for_path();
+    }
+
+    public void pofTestStart_INT_Insertion_for_single_node() {
+        log.info("org.onosproject.pof.test.action Started");
+
+        sw1_tbl0 = send_pof_flow_table_match_SIP_at_SRC(sw1, "AddIntHeader");
+
+        /**
+         * wait 1s
+         */
+        try {
+            Thread.sleep(1000);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        String mapInfo = "0fff";
+        int sampling_rate_N = 3;
+
+        /**
+         * SRC(sw1): send flow table match src_ip{208, 32}
+         */
+        /* rule1: send add_int_field rule to insert INT header in 1/N, the key->len refers to 'N'.*/
+        install_pof_add_int_field_rule_match_srcIp(sw1, sw1_tbl0, srcIp, port2, 12, mapInfo, sampling_rate_N);
+        /* rule2: default rule, mask is 0x00000000 */
+        install_pof_output_flow_rule_match_default_ip_at_SRC(sw1, sw1_tbl0, srcIp, port2, 1);
+    }
+
+    public void pofTestStop_INT_Insertion_for_single_node() {
+        /* remove flow tables */
+        remove_pof_flow_table(sw1, sw1_tbl0);
+
+        log.info("org.onosproject.test.action Stopped: all flow/group tables are removed!");
     }
 
 
@@ -462,9 +501,11 @@ public class AppComponent {
         List<OFAction> actions = new ArrayList<>();
 
         OFAction action_add_int_field = DefaultPofActions.addField(Protocol.INT_FIELD_ID, Protocol.INT_HEADER_DATA_OFF, sampling_rate_N * 8, mapInfo).action();
+//        OFAction action_set_eth_type = DefaultPofActions.setField(Protocol.ETH_TYPE_ID, Protocol.ETH_TYPE_OFF, Protocol.ETH_TYPE_LEN, Protocol.INT_TYPE_VAL, Protocol.ETH_TYPE_MASK).action();
         OFAction action_output = DefaultPofActions.output((short) 0, (short) 0, (short) 0, outport).action();
 
         actions.add(action_add_int_field);
+//        actions.add(action_set_eth_type);
         actions.add(action_output);
         trafficTreamt.add(DefaultPofInstructions.applyActions(actions));
 
@@ -1156,6 +1197,11 @@ public class AppComponent {
         OFAction action_add_int_field = DefaultPofActions.addField(Protocol.INT_FIELD_ID, Protocol.INT_HEADER_DATA_OFF,
                                         Protocol.INT_HEADER_TYPE_LEN, mapInfo).action(); // 'mapInfo' should be 0xffff
 
+        // set eth-type back to 0x0800
+        // add-int-field
+//        OFAction action_set_eth_type = DefaultPofActions.setField(Protocol.ETH_TYPE_ID, Protocol.ETH_TYPE_OFF,
+//                Protocol.ETH_TYPE_LEN, Protocol.ETH_TYPE_VAL, Protocol.ETH_TYPE_MASK).action(); // 'mapInfo' should be 0xffff
+
         // modify INT-ttl
         OFMatch20 Field_INT_ttl =  new OFMatch20();
         Field_INT_ttl.setFieldName("INT_ttl");
@@ -1167,6 +1213,7 @@ public class AppComponent {
         OFAction action_output1 = DefaultPofActions.output((short) 0, (short) 0, (short) 0, collect_port).action();
         actions_bucket1.add(action_add_int_field);    /* add int metadata. */
         actions_bucket1.add(action_inc_INT_ttl);      /* increment int_ttl field by 1 */
+//        actions_bucket1.add(action_set_eth_type);
         actions_bucket1.add(action_output1);
         trafficTreatment_bucket1.add(DefaultPofInstructions.applyActions(actions_bucket1));
 

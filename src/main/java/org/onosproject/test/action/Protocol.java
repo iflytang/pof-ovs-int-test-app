@@ -13,7 +13,7 @@ public class Protocol {
      */
     final static short DMAC_ID = 1;
     final static short SMAC_ID = 2;
-    final static short TYPE_ID = 3;
+    final static short ETH_TYPE_ID = 3;
     final static short TTL_ID = 11;
     final static short SIP_ID = 12;
     final static short DIP_ID= 13;
@@ -85,6 +85,9 @@ public class Protocol {
      */
     final static String IPV4_SIP_VAL = "0a000001";
     final static String INT_TYPE_VAL = "0908";
+
+    final static String ETH_TYPE_VAL = "0800";
+    final static String ETH_TYPE_MASK = "ffff";
     final static String DATA_PLANE_MAPINFO_VAL = "ffff";   // "ffff" means read mapInfo from pkts
 
     /**
