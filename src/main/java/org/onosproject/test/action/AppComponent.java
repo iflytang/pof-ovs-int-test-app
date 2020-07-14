@@ -116,30 +116,35 @@ public class AppComponent {
     protected void activate() {
         appId = coreService.registerApplication("org.onosproject.int.action");
 
-        pofTestStart_INT_Insertion_for_single_node();
+//        pofTestStart_INT_Insertion_for_single_node();
 
 //        pofTestStart_INT_Insertion_for_path();
+
+        pofTestStart_INT_Insertion_for_seven_nodes();
     }
 
 
     @Deactivate
     protected void deactivate() {
 
-        pofTestStop_INT_Insertion_for_single_node();
+//        pofTestStop_INT_Insertion_for_single_node();
 
 //        pofTestStop_INT_Insertion_for_path();
+
+        pofTestStop_INT_Insertion_for_seven_nodes();
     }
 
     public void pofTestStart_INT_Insertion_for_seven_nodes() {
         log.info("org.onosproject.pof.test.action Started");
 
         sw1_tbl0 = send_pof_flow_table_match_SIP_at_SRC(sw1, "AddIntHeader");
-        sw2_tbl0 = send_pof_flow_table_match_SIP_at_SRC(sw1, "AddIntMetadata");
-        sw3_tbl0 = send_pof_flow_table_match_SIP_at_SRC(sw1, "AddIntMetadata");
-        sw4_tbl0 = send_pof_flow_table_match_SIP_at_SRC(sw1, "AddIntMetadata");
-        sw5_tbl0 = send_pof_flow_table_match_SIP_at_SRC(sw1, "AddIntMetadata");
-        sw6_tbl0 = send_pof_flow_table_match_SIP_at_SRC(sw1, "AddIntMetadata");
-        sw7_tbl0 = send_pof_flow_table_match_SIP_at_SRC(sw1, "AddIntMetadata");
+        sw2_tbl0 = send_pof_flow_table_match_INT_TYPE_at_INTER(sw2, "AddIntMetadata");
+        sw3_tbl0 = send_pof_flow_table_match_INT_TYPE_at_INTER(sw3, "AddIntMetadata");
+        sw4_tbl0 = send_pof_flow_table_match_INT_TYPE_at_INTER(sw4, "AddIntMetadata");
+        sw5_tbl0 = send_pof_flow_table_match_INT_TYPE_at_INTER(sw5, "AddIntMetadata");
+        sw6_tbl0 = send_pof_flow_table_match_INT_TYPE_at_INTER(sw6, "MirrorIntMetadata");
+        sw7_tbl0 = send_pof_flow_table_match_INT_TYPE_at_INTER(sw7, "MirrorIntMetadata");
+
 
         /**
          * wait 1s
@@ -157,54 +162,54 @@ public class AppComponent {
          * SRC(sw1): send flow table match src_ip{208, 32}
          */
         /* rule1: send add_int_field rule to insert INT header in 1/N, the key->len refers to 'N'.*/
-        install_pof_add_int_field_rule_match_srcIp(sw1, sw1_tbl0, srcIp, port2, 12, mapInfo, sampling_rate_N);
-//        install_pof_FWD_MOD_FIELD_rule_match_srcIP(sw1, sw1_tbl0, srcIp, port2, 12, mapInfo, sampling_rate_N);
+//        install_pof_add_int_field_rule_match_srcIp(sw1, sw1_tbl0, srcIp, port2, 12, mapInfo, sampling_rate_N);
+        install_pof_FWD_MOD_FIELD_rule_match_srcIP(sw1, sw1_tbl0, srcIp, port1, 12, mapInfo, sampling_rate_N);
         /* rule2: default rule, mask is 0x00000000 */
-//        install_pof_output_flow_rule_match_default_ip_at_SRC(sw1, sw1_tbl0, srcIp, port2, 1);
+//        install_pof_output_flow_rule_match_default_ip_at_SRC(sw1, sw1_tbl0, srcIp, port1, 1);
 
 
         /** INTER(sw2): send flow table match int_type{272, 16} */
         /* rule1: add_int_action. if mapInfo = '0xffff', switch reads mapInfo value from packet instead of controller. */
-        install_pof_add_int_field_rule_match_type(sw2, sw2_tbl0, int_type, port2, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
-//        install_pof_FWD_MOD_FIELD_rule_match_type(sw2, sw2_tbl0, int_type, port2, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
+//        install_pof_add_int_field_rule_match_type(sw2, sw2_tbl0, int_type, port2, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
+        install_pof_FWD_MOD_FIELD_rule_match_type(sw2, sw2_tbl0, int_type, port2, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
         /* rule2: default rule, mask is 0x0000 */
 //        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw2, sw2_tbl0, int_type, port2, 1);
 
 
         /** INTER(sw3): send flow table match int_type{272, 16} */
         /* rule1: add_int_action. if mapInfo = '0xffff', switch reads mapInfo value from packet instead of controller. */
-        install_pof_add_int_field_rule_match_type(sw3, sw3_tbl0, int_type, port2, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
-//        install_pof_FWD_MOD_FIELD_rule_match_type(sw3, sw3_tbl0, int_type, port2, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
+//        install_pof_add_int_field_rule_match_type(sw3, sw3_tbl0, int_type, port2, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
+        install_pof_FWD_MOD_FIELD_rule_match_type(sw3, sw3_tbl0, int_type, port2, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
         /* rule2: default rule, mask is 0x0000 */
 //        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw3, sw2_tbl0, int_type, port2, 1);
 
 
         /** INTER(sw4): send flow table match int_type{272, 16} */
         /* rule1: add_int_action. if mapInfo = '0xffff', switch reads mapInfo value from packet instead of controller.  */
-        install_pof_add_int_field_rule_match_type(sw4, sw4_tbl0, int_type, port2, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
-//        install_pof_FWD_MOD_FIELD_rule_match_type(sw4, sw4_tbl0, int_type, port2, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
+//        install_pof_add_int_field_rule_match_type(sw4, sw4_tbl0, int_type, port2, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
+        install_pof_FWD_MOD_FIELD_rule_match_type(sw4, sw4_tbl0, int_type, port2, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
         /* rule2: default rule, mask is 0x0000 */
 //        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw4, sw4_tbl0, int_type, port2, 1);
 
 
         /** INTER(sw5): send flow table match int_type{272, 16} */
         /* rule1: add_int_action. if mapInfo = '0xffff', switch reads mapInfo value from packet instead of controller.  */
-        install_pof_add_int_field_rule_match_type(sw5, sw5_tbl0, int_type, port2, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
-//        install_pof_FWD_MOD_FIELD_rule_match_type(sw5, sw5_tbl0, int_type, port2, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
+//        install_pof_add_int_field_rule_match_type(sw5, sw5_tbl0, int_type, port2, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
+        install_pof_FWD_MOD_FIELD_rule_match_type(sw5, sw5_tbl0, int_type, port2, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
         /* rule2: default rule, mask is 0x0000 */
 //        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw5, sw5_tbl0, int_type, port2, 1);
 
         /** INTER(sw6): send flow table match int_type{272, 16} */
         /* rule1: add_int_action. if mapInfo = '0xffff', switch reads mapInfo value from packet instead of controller.  */
-        install_pof_add_int_field_rule_match_type(sw6, sw6_tbl0, int_type, port2, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
-//        install_pof_FWD_MOD_FIELD_rule_match_type(sw6, sw6_tbl0, int_type, port2, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
+//        install_pof_add_int_field_rule_match_type(sw6, sw6_tbl0, int_type, port2, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
+        install_pof_FWD_MOD_FIELD_rule_match_type(sw6, sw6_tbl0, int_type, port2, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
         /* rule2: default rule, mask is 0x0000 */
 //        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw6, sw6_tbl0, int_type, port2, 1);
 
         /** INTER(sw7) - without mirror: send flow table match int_type{272, 16} */
         /* rule1: add_int_action. if mapInfo = '0xffff', switch reads mapInfo value from packet instead of controller.  */
-        install_pof_add_int_field_rule_match_type(sw7, sw7_tbl0, int_type, port2, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
-//        install_pof_FWD_MOD_FIELD_rule_match_type(sw7, sw7_tbl0, int_type, port2, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
+//        install_pof_add_int_field_rule_match_type(sw7, sw7_tbl0, int_type, port2, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
+        install_pof_FWD_MOD_FIELD_rule_match_type(sw7, sw7_tbl0, int_type, port2, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
         /* rule2: default rule, mask is 0x0000 */
 //        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw7, sw7_tbl0, int_type, port2, 1);
 
@@ -979,7 +984,7 @@ public class AppComponent {
         FIELD_DMAC.setFieldId(Protocol.FWD_MOD_DMAC_FIELD_ID);
         FIELD_DMAC.setOffset(Protocol.ETH_DMAC_OFF);
         FIELD_DMAC.setLength(Protocol.ETH_DMAC_LEN);
-        OFAction action_fwd_mod_dmac = DefaultPofActions.modifyField(FIELD_DMAC, 13).action();
+        OFAction action_fwd_mod_dmac = DefaultPofActions.modifyField(FIELD_DMAC, 1).action();
 
         // FWD_ADD_INT_HDR_FIELD_ID: add int header
         OFAction action_add_int_field = DefaultPofActions.addField(Protocol.FWD_ADD_INT_HDR_FIELD_ID,
@@ -1078,9 +1083,9 @@ public class AppComponent {
 //        actions.add(action_fwd_mod_sip);
 //        actions.add(action_fwd_mod_dip);
 //        actions.add(action_fwd_mod_smac);
-        actions.add(action_fwd_mod_dmac);
+//        actions.add(action_fwd_mod_dmac);
         actions.add(action_add_int_field);
-        actions.add(action_inc_INT_ttl);
+//        actions.add(action_inc_INT_ttl);    // first_hop does not execute it
         actions.add(action_output);
         trafficTreamt.add(DefaultPofInstructions.applyActions(actions));
         log.info("actions: {}.", actions);
