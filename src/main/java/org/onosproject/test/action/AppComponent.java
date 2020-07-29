@@ -126,16 +126,16 @@ public class AppComponent {
      * sock flag. true in activate(), false in deactivate().
     * */
     private ExecutorService threadPool;
-//    private Boolean sock_flag = false;
     protected DLSocketServer dlSocketServer = null;
 
     @Activate
     protected void activate() {
-        log.info("org.onosproject.pof.int.action Start 1.");
         appId = coreService.registerApplication("org.onosproject.int.action");
 
-        dlSocketServer = new DLSocketServer();
-//        dlSocketServer.setSock_flag(true);
+        /* init socket to recv DL data. */
+        threadPool = Executors.newCachedThreadPool();
+        dlSocketServer = new DLSocketServer(threadPool);
+        threadPool.execute(dlSocketServer);
 
 
 //        pofTestStart_INT_Insertion_for_single_node();
@@ -144,14 +144,14 @@ public class AppComponent {
 
 //        pofTestStart_INT_Insertion_for_seven_nodes();
 
-        log.info("org.onosproject.pof.int.action Start 2.");
+        log.info("org.onosproject.pof.int.action Start.");
     }
 
 
     @Deactivate
     protected void deactivate() {
 
-//        dlSocketServer.sock_flag = false;
+        /* teardown thread. */
         dlSocketServer.setSock_flag(false);
 
 //        dlSocketServer.teardown_thread();
@@ -1807,7 +1807,7 @@ public class AppComponent {
                         predict_trace_data[j-monitor_nodes] = bytes2float(receive, i);
 //                        log.info("predict_trace_data[{}]: {}", j-monitor_nodes, predict_trace_data[j-monitor_nodes]);
                     }
-                    log.info("parse complete.");
+                    log.info("parse predict trace data ok.");
 
                     if (len < 0) {
                         break;
@@ -1834,25 +1834,22 @@ public class AppComponent {
      * inner class.
      * keep socket listening from DL module
      */
-    protected class DLSocketServer {
+    protected class DLSocketServer implements Runnable {
 
         private Boolean sock_flag;
         private Thread sock_thread;
-//        private ExecutorService threadPool;
+        private ExecutorService threadPool;
 
         public void setSock_flag(Boolean sock_flag) {
             this.sock_flag = sock_flag;
         }
 
-        public void teardown_thread() {
-            try {
-                sock_thread.interrupt();
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+        public DLSocketServer(ExecutorService threadPool) {
+            this.threadPool = threadPool;
         }
 
-        public DLSocketServer() {
+        @Override
+        public void run() {
             this.sock_flag = true;
             log.info("org.onosproject.pof.int.action DLSocketServer module Started.");
 
@@ -1863,16 +1860,16 @@ public class AppComponent {
                 log.info(serverSocket.toString());
                 log.info("listening port is {}.", PORT);
 
-                Socket client = null;
-                InetAddress inetAddress = null;
                 while (sock_flag) {
+                    Socket client = null;
+                    InetAddress inetAddress = null;
                     client = serverSocket.accept();
                     inetAddress = client.getInetAddress();
                     socket_num++;
                     log.info("client<{}> connected! connected_num: {}", inetAddress, socket_num);
-                    sock_thread = new Thread(new DLPredictTraceProcessor(client));
-                    sock_thread.start();
-//                    threadPool.execute(new DLPredictTraceProcessor(client));
+//                    sock_thread = new Thread(new DLPredictTraceProcessor(client));
+//                    sock_thread.start();
+                    threadPool.execute(new DLPredictTraceProcessor(client));
                 }
 
                 serverSocket.close();
