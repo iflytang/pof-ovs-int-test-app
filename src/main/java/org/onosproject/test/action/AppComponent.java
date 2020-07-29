@@ -37,8 +37,19 @@ import org.onosproject.net.table.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.InetAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
 
 /**
  * @author tsf
@@ -111,27 +122,47 @@ public class AppComponent {
     private String srcIp = Protocol.IPV4_SIP_VAL;
     private String int_type = Protocol.INT_TYPE_VAL;
 
+    /**
+     * sock flag. true in activate(), false in deactivate().
+    * */
+    private ExecutorService threadPool;
+//    private Boolean sock_flag = false;
+    protected DLSocketServer dlSocketServer = null;
 
     @Activate
     protected void activate() {
+        log.info("org.onosproject.pof.int.action Start 1.");
         appId = coreService.registerApplication("org.onosproject.int.action");
+
+        dlSocketServer = new DLSocketServer();
+//        dlSocketServer.setSock_flag(true);
+
 
 //        pofTestStart_INT_Insertion_for_single_node();
 
 //        pofTestStart_INT_Insertion_for_path();
 
-        pofTestStart_INT_Insertion_for_seven_nodes();
+//        pofTestStart_INT_Insertion_for_seven_nodes();
+
+        log.info("org.onosproject.pof.int.action Start 2.");
     }
 
 
     @Deactivate
     protected void deactivate() {
 
+//        dlSocketServer.sock_flag = false;
+        dlSocketServer.setSock_flag(false);
+
+//        dlSocketServer.teardown_thread();
+
 //        pofTestStop_INT_Insertion_for_single_node();
 
 //        pofTestStop_INT_Insertion_for_path();
 
-        pofTestStop_INT_Insertion_for_seven_nodes();
+//        pofTestStop_INT_Insertion_for_seven_nodes();
+
+        log.info("org.onosproject.pof.int.action Stopped.");
     }
 
     public void pofTestStart_INT_Insertion_for_seven_nodes() {
@@ -252,7 +283,7 @@ public class AppComponent {
         }
 
         String mapInfo = "0fff";
-        int sampling_rate_N = 1;
+        int sampling_rate_N = 2;
 
         /**
          * SRC(sw1): send flow table match src_ip{208, 32}
@@ -1693,4 +1724,165 @@ public class AppComponent {
         return hex_str.toString();
     }
 
-}
+    public static double bytes2Double(byte[] arr, int k){
+        long value=0;
+        for(int i=0;i< 8;i++){
+            value|=((long)(arr[k]&0xff))<<(8*i);
+            k++;
+        }
+        return Double.longBitsToDouble(value);
+    }
+
+    public static int bytes2Int(byte[] arr, int k){
+        int value=0;
+        for(int i=0;i< 4;i++){
+            value|=((arr[k]&0xff))<<(4*i);
+            k++;
+        }
+        return value;
+    }
+
+    public static float bytes2float(byte[] b, int index) {
+        int l;
+        l = b[index + 0];
+        l &= 0xff;
+        l |= ((long) b[index + 1] << 8);
+        l &= 0xffff;
+        l |= ((long) b[index + 2] << 16);
+        l &= 0xffffff;
+        l |= ((long) b[index + 3] << 24);
+        return Float.intBitsToFloat(l);
+    }
+
+    /* socket related definition. */
+    private static int socket_num = 0;
+    private static final String SERVER_ADDR = "192.168.109.214";
+    private static final String CLIENT_ADDR = "192.168.109.209";
+    private static final int PORT = 2020;
+
+    /** inner class processor.
+     *  process DL predicted trace 24 point/sec by socket from DL module. the processor get the peak trace and
+     *  dynamically adjust Sel-INT's sampling ratio.
+     * */
+    protected class DLPredictTraceProcessor implements Runnable {
+        private Socket client = null;
+
+        public DLPredictTraceProcessor(Socket client) {
+            this.client = client;
+        }
+
+        @Override
+        public void run() {
+            try {
+                /* connection setups, read data from client. */
+                InetAddress inetAddress = null;
+                inetAddress = client.getInetAddress();
+
+                InputStream inStrm_sock = client.getInputStream();
+
+                /* received buf. */
+                int predict_len = 24;
+                int monitor_nodes = 3;
+                int float_byte_size = 4;
+                byte[] receive = new byte[(monitor_nodes + predict_len) * float_byte_size];
+
+                /* received parsed data. */
+                float[] cur_nodes_trace_data = new float[monitor_nodes];
+                float[] predict_trace_data = new float[predict_len];
+
+                int i,j;
+                while (true) {
+
+                    SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+                    int len = inStrm_sock.read(receive, 0, receive.length);
+                    log.info("{}, len: {}", df.format(new Date()), len);
+
+                    for (i = 0, j = 0; i < len; i = i + float_byte_size, j++) {
+                        if (j < monitor_nodes) {   // first 'monitor_nodes' points
+                            cur_nodes_trace_data[j] = bytes2float(receive, i);
+                            log.info("cur_nodes_trace_data[{}]: {}.",j , cur_nodes_trace_data[j]);
+                            continue;
+                        }
+
+                        predict_trace_data[j-monitor_nodes] = bytes2float(receive, i);
+//                        log.info("predict_trace_data[{}]: {}", j-monitor_nodes, predict_trace_data[j-monitor_nodes]);
+                    }
+                    log.info("parse complete.");
+
+                    if (len < 0) {
+                        break;
+                    }
+
+                    Arrays.fill(cur_nodes_trace_data, 0);
+                    Arrays.fill(predict_trace_data, 0);
+                    Arrays.fill(receive, (byte) 0);
+                }
+
+                inStrm_sock.close();
+                client.close();
+                socket_num--;
+                log.info("client<{}> disconnected! connected_num: {}.", inetAddress, socket_num);
+            } catch (IOException io) {
+                io.printStackTrace();
+            }
+        }
+
+    }  // end of DLPredictTraceProcessor
+
+
+    /**
+     * inner class.
+     * keep socket listening from DL module
+     */
+    protected class DLSocketServer {
+
+        private Boolean sock_flag;
+        private Thread sock_thread;
+//        private ExecutorService threadPool;
+
+        public void setSock_flag(Boolean sock_flag) {
+            this.sock_flag = sock_flag;
+        }
+
+        public void teardown_thread() {
+            try {
+                sock_thread.interrupt();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        public DLSocketServer() {
+            this.sock_flag = true;
+            log.info("org.onosproject.pof.int.action DLSocketServer module Started.");
+
+            try {
+                /* server */
+                ServerSocket serverSocket = new ServerSocket(PORT);
+                log.info("server socket is waiting to be connected ...");
+                log.info(serverSocket.toString());
+                log.info("listening port is {}.", PORT);
+
+                Socket client = null;
+                InetAddress inetAddress = null;
+                while (sock_flag) {
+                    client = serverSocket.accept();
+                    inetAddress = client.getInetAddress();
+                    socket_num++;
+                    log.info("client<{}> connected! connected_num: {}", inetAddress, socket_num);
+                    sock_thread = new Thread(new DLPredictTraceProcessor(client));
+                    sock_thread.start();
+//                    threadPool.execute(new DLPredictTraceProcessor(client));
+                }
+
+                serverSocket.close();
+                log.info("server socket closed.");
+
+            } catch (IOException io) {
+                io.printStackTrace();
+            }
+        }
+
+    }   // end of DLSocketServer
+
+} // end of AppComponent
