@@ -43,12 +43,10 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.stream.IntStream;
 
 
 /**
@@ -121,6 +119,7 @@ public class AppComponent {
      */
     private String srcIp = Protocol.IPV4_SIP_VAL;
     private String int_type = Protocol.INT_TYPE_VAL;
+    private String ML_INT_MAPINFO = "0021";
 
     /**
      * sock flag. true in activate(), false in deactivate().
@@ -136,9 +135,10 @@ public class AppComponent {
         threadPool = Executors.newCachedThreadPool();
         dlSocketServer = new DLSocketServer(threadPool);
         threadPool.execute(dlSocketServer);
+        /* end of init socket to recv DL data. */
 
 
-//        pofTestStart_INT_Insertion_for_single_node();
+        pofTestStart_INT_Insertion_for_single_node();
 
 //        pofTestStart_INT_Insertion_for_path();
 
@@ -153,10 +153,12 @@ public class AppComponent {
 
         /* teardown thread. */
         dlSocketServer.setSock_flag(false);
+        threadPool.shutdown();
+        /* end of teardown thread. */
 
 //        dlSocketServer.teardown_thread();
 
-//        pofTestStop_INT_Insertion_for_single_node();
+        pofTestStop_INT_Insertion_for_single_node();
 
 //        pofTestStop_INT_Insertion_for_path();
 
@@ -273,6 +275,8 @@ public class AppComponent {
 
         sw1_tbl0 = send_pof_flow_table_match_SIP_at_SRC(sw1, "AddIntHeader");
 
+
+
         /**
          * wait 1s
          */
@@ -282,7 +286,7 @@ public class AppComponent {
             e.printStackTrace();
         }
 
-        String mapInfo = "0fff";
+        String mapInfo = ML_INT_MAPINFO;
         int sampling_rate_N = 2;
 
         /**
@@ -651,7 +655,10 @@ public class AppComponent {
         trafficTreamt.add(DefaultPofInstructions.applyActions(actions));
         log.info("actions: {}.", actions);
 
-        // get existed flow rules in flow table. if the srcIp equals, then delete it
+        /* get existed flow rules in flow table. if the srcIp equals, then delete it.
+         * For POFSwitch, this code should be run. POFSwitch will not auto replace flow entry with same match field.
+         * For OVS-POF, it will auto replace flow entry with same match field.
+         */
         /*Map<Integer, FlowRule> existedFlowRules = new HashMap<>();
         existedFlowRules = flowTableStore.getFlowEntries(deviceId, FlowTableId.valueOf(tableId));
         if(existedFlowRules != null) {
@@ -1754,11 +1761,45 @@ public class AppComponent {
         return Float.intBitsToFloat(l);
     }
 
+    public static float MAX_floatStream(float[] arr) {
+        double[] doubles = IntStream.range(0, arr.length).mapToDouble(i -> arr[i]).toArray();
+        return (float) Arrays.stream(doubles).max().getAsDouble();
+    }
+
+    public static float MIN_floatStream(float[] arr) {
+        double[] doubles = IntStream.range(0, arr.length).mapToDouble(i -> arr[i]).toArray();
+        return (float) Arrays.stream(doubles).min().getAsDouble();
+    }
+
     /* socket related definition. */
     private static int socket_num = 0;
     private static final String SERVER_ADDR = "192.168.109.214";
     private static final String CLIENT_ADDR = "192.168.109.209";
     private static final int PORT = 2020;
+
+    /* predict_trace threshold. */
+    private static final float trace_threshold_1 = 0.7f;
+    private static final float trace_threshold_2 = 0.8f;
+    private static final float trace_threshold_3 = 0.9f;
+
+    /* sampling_N adjust according to threshold. */
+    private static final int N1 = 1;
+    private static final int N2 = 2;
+    private static final int N3 = 3;
+    private static final int N4 = 4;
+    private static final int N5 = 5;
+    private static final int N6 = 6;
+    private static final int N7 = 7;
+    private static final int N8 = 8;
+    private static final int N9 = 9;
+    private static final int N10 = 10;
+
+    private int his_sampling_N = 0;
+    private int cur_sampling_N = 0;
+
+    private int recv_trace_cnt = 0;
+    private int update_entry_cnt = 0;
+
 
     /** inner class processor.
      *  process DL predicted trace 24 point/sec by socket from DL module. the processor get the peak trace and
@@ -1790,24 +1831,158 @@ public class AppComponent {
                 float[] cur_nodes_trace_data = new float[monitor_nodes];
                 float[] predict_trace_data = new float[predict_len];
 
+                float max_predict_trace = 0;
+                int predict_trace_order = 0;
+
                 int i,j;
                 while (true) {
 
                     SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
                     int len = inStrm_sock.read(receive, 0, receive.length);
-                    log.info("{}, len: {}", df.format(new Date()), len);
+//                    log.info("{}, len: {}", df.format(new Date()), len);
 
                     for (i = 0, j = 0; i < len; i = i + float_byte_size, j++) {
                         if (j < monitor_nodes) {   // first 'monitor_nodes' points
                             cur_nodes_trace_data[j] = bytes2float(receive, i);
-                            log.info("cur_nodes_trace_data[{}]: {}.",j , cur_nodes_trace_data[j]);
+//                            log.info("cur_nodes_trace_data[{}]: {}.",j , cur_nodes_trace_data[j]);
                             continue;
                         }
 
                         predict_trace_data[j-monitor_nodes] = bytes2float(receive, i);
 //                        log.info("predict_trace_data[{}]: {}", j-monitor_nodes, predict_trace_data[j-monitor_nodes]);
                     }
-                    log.info("parse predict trace data ok.");
+
+                    recv_trace_cnt++;
+                    log.info("parse predict trace data ok. recv_trace_cnt: {}.", recv_trace_cnt);
+
+                    /* let max_trace compare with threadshold and adjust sampling ratio here
+                    * start of sending flow entry, every 24 points
+                    * */
+                    max_predict_trace = MAX_floatStream(predict_trace_data);
+                    predict_trace_order = (int) (max_predict_trace/0.1f);
+                    log.info("max_predict_trace_data: {}, integer order: {}.", max_predict_trace, predict_trace_order);
+
+                    Boolean should_update_flow_entry = false;
+                    switch (predict_trace_order) {
+                        /* [0, 0.7), sampling_ration = 0.5, N = 2. */
+                        case 0:
+                        case 1:
+                        case 2:
+                        case 3:
+                        case 4:
+                        case 5:
+                        case 6: {
+                            cur_sampling_N = N2;
+
+                            if (his_sampling_N == 0) {   // init stage
+                                his_sampling_N = cur_sampling_N;
+                                should_update_flow_entry = true;
+                                log.info("in case 0~6, should update init.");
+                                break;
+                            }
+
+                            if (his_sampling_N != cur_sampling_N) {  // update stage
+                                his_sampling_N = cur_sampling_N;
+                                should_update_flow_entry = true;
+                                log.info("in case 0~6, should update.");
+                            } else { // no need update
+                                /* pass */
+                                should_update_flow_entry = false;
+                                log.info("in case 0~6, should not update.");
+                            }
+                            break;
+                        }
+
+                        /* [0.7, 0.8), sampling_ration = 0.3, N = 3.  */
+                        case 7: {
+                            cur_sampling_N = N3;
+
+                            if (his_sampling_N == 0) {   // init stage
+                                his_sampling_N = cur_sampling_N;
+                                should_update_flow_entry = true;
+                                log.info("in case 7, should update init.");
+                                break;
+                            }
+
+                            if (his_sampling_N != cur_sampling_N) {  // update stage
+                                his_sampling_N = cur_sampling_N;
+                                should_update_flow_entry = true;
+                                log.info("in case 7, should update.");
+                            } else { // no need update
+                                /* pass */
+                                should_update_flow_entry = false;
+                                log.info("in case 7, should not update.");
+                            }
+                            break;
+                        }
+
+                        /* [0.8, 0.9), sampling_ration = 0.2, N = 5.  */
+                        case 8: {
+                            cur_sampling_N = N5;
+
+                            if (his_sampling_N == 0) {   // init stage
+                                his_sampling_N = cur_sampling_N;
+                                should_update_flow_entry = true;
+                                log.info("in case 8, should update init.");
+                                break;
+                            }
+
+                            if (his_sampling_N != cur_sampling_N) {  // update stage
+                                his_sampling_N = cur_sampling_N;
+                                should_update_flow_entry = true;
+                                log.info("in case 8, should update.");
+                            } else { // no need update
+                                /* pass */
+                                should_update_flow_entry = false;
+                                log.info("in case 8, should not update.");
+                            }
+                            break;
+                        }
+
+                        /* [0.9, 1], sampling_ration = 0.1, N = 10.  */
+                        case 9: {
+                            cur_sampling_N = N10;
+
+                            if (his_sampling_N == 0) {   // init stage
+                                his_sampling_N = cur_sampling_N;
+                                should_update_flow_entry = true;
+                                log.info("in case 9, should update init.");
+                                break;
+                            }
+
+                            if (his_sampling_N != cur_sampling_N) {  // update stage
+                                his_sampling_N = cur_sampling_N;
+                                should_update_flow_entry = true;
+                                log.info("in case 9, should update.");
+                            } else { // no need update
+                                /* pass */
+                                should_update_flow_entry = false;
+                                log.info("in case 9, should not update.");
+                            }
+                            break;
+                        }
+
+                    }
+
+
+                    if (should_update_flow_entry) {
+                        String mapInfo = ML_INT_MAPINFO;  // switch_id and bandwidth
+                        int sampling_rate_N = cur_sampling_N;
+                        update_entry_cnt += 1;
+
+                        /**
+                         * SRC(sw1): send flow table match src_ip{208, 32}
+                         */
+                        /* rule1: send add_int_field rule to insert INT header in 1/N, the key->len refers to 'N'.*/
+                        install_pof_add_int_field_rule_match_srcIp(sw1, sw1_tbl0, srcIp, port1, 12, mapInfo, sampling_rate_N);
+                        /* rule2: default rule, mask is 0x00000000 */
+//                        install_pof_output_flow_rule_match_default_ip_at_SRC(sw1, sw1_tbl0, srcIp, port2, 1);
+
+                        log.info("DLPredictTraceProcessor, update_entry_cnt:{}, sampling_N:{}, cur_sampling_N:{}, his_sampling_N:{}.",
+                                update_entry_cnt, sampling_rate_N, cur_sampling_N, his_sampling_N);
+                    }
+                    /* end of sending flow entry. */
+
 
                     if (len < 0) {
                         break;
@@ -1836,7 +2011,7 @@ public class AppComponent {
      */
     protected class DLSocketServer implements Runnable {
 
-        private Boolean sock_flag;
+        private volatile Boolean sock_flag;
         private Thread sock_thread;
         private ExecutorService threadPool;
 
@@ -1865,6 +2040,13 @@ public class AppComponent {
                     InetAddress inetAddress = null;
                     client = serverSocket.accept();
                     inetAddress = client.getInetAddress();
+
+                    /* reset every re-connection. */
+                    his_sampling_N = 0;
+                    cur_sampling_N = 0;
+                    recv_trace_cnt = 0;
+                    update_entry_cnt = 0;
+
                     socket_num++;
                     log.info("client<{}> connected! connected_num: {}", inetAddress, socket_num);
 //                    sock_thread = new Thread(new DLPredictTraceProcessor(client));
