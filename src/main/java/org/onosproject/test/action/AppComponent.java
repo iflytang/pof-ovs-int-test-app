@@ -119,7 +119,16 @@ public class AppComponent {
      */
     private String srcIp = Protocol.IPV4_SIP_VAL;
     private String int_type = Protocol.INT_TYPE_VAL;
-    private String ML_INT_MAPINFO = "0021";
+
+    private String MAPINFO_BER_SWID = "0401";
+    private String MAPINFO_BW_SWID = "0021";
+    private String MAPINFO_BYTES_PKTS_BW_SWID = "00e1";
+    private String MAPINFO_BYTES_PKTS_LATENCY_BW_SWID = "00f1";
+    private String ML_INT_MAPINFO = MAPINFO_BYTES_PKTS_LATENCY_BW_SWID;    // 0401
+
+    private int first_hop_output_port = port2;
+    private int second_hop_output_port = port2;
+    private int third_hop_output_port = port1;
 
     /**
      * sock flag. true in activate(), false in deactivate().
@@ -131,14 +140,13 @@ public class AppComponent {
     protected void activate() {
         appId = coreService.registerApplication("org.onosproject.int.action");
 
-        /* init socket to recv DL data. */
-        threadPool = Executors.newCachedThreadPool();
-        dlSocketServer = new DLSocketServer(threadPool);
-        threadPool.execute(dlSocketServer);
-        /* end of init socket to recv DL data. */
+        /* OFC2021 experiments. */
+//        activate_OFC2021_packet_layer_experiment(); // packet layer
+        activate_OFC2021_optical_layer_experiment(); // optical layer
+        /* end of OFC2021 experiments. */
 
 
-        pofTestStart_INT_Insertion_for_single_node();
+//        pofTestStart_INT_Insertion_for_single_node();
 
 //        pofTestStart_INT_Insertion_for_path();
 
@@ -151,20 +159,139 @@ public class AppComponent {
     @Deactivate
     protected void deactivate() {
 
-        /* teardown thread. */
-        dlSocketServer.setSock_flag(false);
-        threadPool.shutdown();
-        /* end of teardown thread. */
+        /* OFC2021 experiments. */
+//        deactivate_OFC2021_packet_layer_experiment(); // packet layer
+        deactivate_OFC2021_optical_layer_experiment(); // optical layer
+        /* end of OFC2021 experiments. */
 
-//        dlSocketServer.teardown_thread();
 
-        pofTestStop_INT_Insertion_for_single_node();
+//        pofTestStop_INT_Insertion_for_single_node();
 
 //        pofTestStop_INT_Insertion_for_path();
 
 //        pofTestStop_INT_Insertion_for_seven_nodes();
 
         log.info("org.onosproject.pof.int.action Stopped.");
+    }
+
+    /* packet layer experiment: predict traffic peak and adjust Sel-INT sampling ratio.
+     * ML_INT_MAPINFO = MAPINFO_BYTES_PKTS_LATENCY_BW_SWID; // 00f1
+     * */
+    public void activate_OFC2021_packet_layer_experiment() {
+        /* init socket to recv DL data. */
+        log.info("activate_OFC2021_packet_layer_experiment Started, init ExecutorService process.");
+        threadPool = Executors.newCachedThreadPool();
+        dlSocketServer = new DLSocketServer(threadPool);
+        threadPool.execute(dlSocketServer);
+        /* end of init socket to recv DL data. */
+
+        /* send flow rules to ovs-pof */
+        log.info("activate_OFC2021_packet_layer_experiment Started, init flow rules to switches.");
+        sw1_tbl0 = send_pof_flow_table_match_SIP_at_SRC(sw1, "AddIntHeader");
+        sw2_tbl0 = send_pof_flow_table_match_INT_TYPE_at_INTER(sw2, "AddIntMetadata");
+        sw3_tbl0 = send_pof_flow_table_match_INT_TYPE_at_INTER(sw3, "AddIntMetadata");
+
+        /* wait 1s. */
+        try {
+            Thread.sleep(1000);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        String mapInfo = ML_INT_MAPINFO;
+        int sampling_rate_N = 2;
+
+        /**
+         * SRC(sw1): send flow table match src_ip{208, 32}
+         */
+        /* rule1: send add_int_field rule to insert INT header in 1/N, the key->len refers to 'N'.*/
+        install_pof_add_int_field_rule_match_srcIp(sw1, sw1_tbl0, srcIp, first_hop_output_port, 12, mapInfo, sampling_rate_N);
+        /* rule2: default rule, mask is 0x00000000 */
+//        install_pof_output_flow_rule_match_default_ip_at_SRC(sw1, sw1_tbl0, srcIp, port2, 1);
+
+        /** INTER(sw2): send flow table match int_type{272, 16} */
+        /* rule1: add_int_action. if revalidate path, with add_func_field action */
+        install_pof_add_int_field_rule_match_type(sw2, sw2_tbl0, int_type, second_hop_output_port, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
+        /* rule2: default rule, mask is 0x0000 */
+//        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw2, sw2_tbl0, int_type, port2, 1);
+
+        /** INTER(sw3): send flow table match int_type{272, 16} */
+        /* rule1: add_int_action. if revalidate path, with add_func_field action */
+        install_pof_add_int_field_rule_match_type(sw3, sw3_tbl0, int_type, third_hop_output_port, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
+        /* rule2: default rule, mask is 0x0000 */
+//        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw2, sw2_tbl0, int_type, port2, 1);
+
+        log.info("activate_OFC2021_packet_layer_experiment Started");
+    }
+
+    public void deactivate_OFC2021_packet_layer_experiment() {
+        /* teardown thread. */
+        dlSocketServer.setSock_flag(false);
+        threadPool.shutdown();
+        /* end of teardown thread. */
+        log.info("deactivate_OFC2021_packet_layer_experiment, shutdown ExecutorService!");
+
+        /* remove flow tables */
+        remove_pof_flow_table(sw1, sw1_tbl0);
+        remove_pof_flow_table(sw2, sw2_tbl0);
+        remove_pof_flow_table(sw3, sw3_tbl0);
+
+        log.info("deactivate_OFC2021_packet_layer_experiment, all flow/group tables are removed!");
+    }
+
+    /* optical layer experiment: fix Sel-INT sampling ratio and packet rate, INT collector sends 'ber' to OCM collector
+     * to adjust OCM's data request policy.
+     * ML_INT_MAPINFO = MAPINFO_BER_SWID; // 0401
+     * */
+    public void activate_OFC2021_optical_layer_experiment() {
+
+        /* send flow rules to ovs-pof */
+        log.info("activate_OFC2021_optical_layer_experiment Started, init flow rules to switches.");
+        sw1_tbl0 = send_pof_flow_table_match_SIP_at_SRC(sw1, "AddIntHeader");
+        sw2_tbl0 = send_pof_flow_table_match_INT_TYPE_at_INTER(sw2, "AddIntMetadata");
+        sw3_tbl0 = send_pof_flow_table_match_INT_TYPE_at_INTER(sw3, "AddIntMetadata");
+
+        /* wait 1s. */
+        try {
+            Thread.sleep(1000);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        String mapInfo = MAPINFO_BER_SWID;
+        int sampling_rate_N = 4;
+
+        /**
+         * SRC(sw1): send flow table match src_ip{208, 32}
+         */
+        /* rule1: send add_int_field rule to insert INT header in 1/N, the key->len refers to 'N'.*/
+        install_pof_add_int_field_rule_match_srcIp(sw1, sw1_tbl0, srcIp, first_hop_output_port, 12, mapInfo, sampling_rate_N);
+        /* rule2: default rule, mask is 0x00000000 */
+//        install_pof_output_flow_rule_match_default_ip_at_SRC(sw1, sw1_tbl0, srcIp, port2, 1);
+
+        /** INTER(sw2): send flow table match int_type{272, 16} */
+        /* rule1: add_int_action. if revalidate path, with add_func_field action */
+        install_pof_add_int_field_rule_match_type(sw2, sw2_tbl0, int_type, second_hop_output_port, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
+        /* rule2: default rule, mask is 0x0000 */
+//        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw2, sw2_tbl0, int_type, port2, 1);
+
+        /** INTER(sw3): send flow table match int_type{272, 16} */
+        /* rule1: add_int_action. if revalidate path, with add_func_field action */
+        install_pof_add_int_field_rule_match_type(sw3, sw3_tbl0, int_type, third_hop_output_port, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
+        /* rule2: default rule, mask is 0x0000 */
+//        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw2, sw2_tbl0, int_type, port2, 1);
+
+        log.info("activate_OFC2021_optical_layer_experiment Started");
+    }
+
+    public void deactivate_OFC2021_optical_layer_experiment() {
+
+        /* remove flow tables */
+        remove_pof_flow_table(sw1, sw1_tbl0);
+        remove_pof_flow_table(sw2, sw2_tbl0);
+        remove_pof_flow_table(sw3, sw3_tbl0);
+
+        log.info("deactivate_OFC2021_optical_layer_experiment, all flow/group tables are removed!");
     }
 
     public void pofTestStart_INT_Insertion_for_seven_nodes() {
@@ -1773,9 +1900,9 @@ public class AppComponent {
 
     /* socket related definition. */
     private static int socket_num = 0;
-    private static final String SERVER_ADDR = "192.168.109.214";
-    private static final String CLIENT_ADDR = "192.168.109.209";
-    private static final int PORT = 2020;
+    private static final String SERVER_ADDR = "192.168.108.216";
+//    private static final String CLIENT_ADDR = "192.168.109.209";
+    private static final int PORT = 2019;
 
     /* predict_trace threshold. */
     private static final float trace_threshold_1 = 0.7f;
@@ -1793,6 +1920,8 @@ public class AppComponent {
     private static final int N8 = 8;
     private static final int N9 = 9;
     private static final int N10 = 10;
+    private static final int N100 = 100;
+    private static final int N1000 = 1000;
 
     private int his_sampling_N = 0;
     private int cur_sampling_N = 0;
@@ -1895,7 +2024,7 @@ public class AppComponent {
 
                         /* [0.7, 0.8), sampling_ration = 0.3, N = 3.  */
                         case 7: {
-                            cur_sampling_N = N3;
+                            cur_sampling_N = N10;
 
                             if (his_sampling_N == 0) {   // init stage
                                 his_sampling_N = cur_sampling_N;
@@ -1918,7 +2047,7 @@ public class AppComponent {
 
                         /* [0.8, 0.9), sampling_ration = 0.2, N = 5.  */
                         case 8: {
-                            cur_sampling_N = N5;
+                            cur_sampling_N = N100;
 
                             if (his_sampling_N == 0) {   // init stage
                                 his_sampling_N = cur_sampling_N;
@@ -1941,7 +2070,7 @@ public class AppComponent {
 
                         /* [0.9, 1], sampling_ration = 0.1, N = 10.  */
                         case 9: {
-                            cur_sampling_N = N10;
+                            cur_sampling_N = N1000;
 
                             if (his_sampling_N == 0) {   // init stage
                                 his_sampling_N = cur_sampling_N;
@@ -1974,7 +2103,7 @@ public class AppComponent {
                          * SRC(sw1): send flow table match src_ip{208, 32}
                          */
                         /* rule1: send add_int_field rule to insert INT header in 1/N, the key->len refers to 'N'.*/
-                        install_pof_add_int_field_rule_match_srcIp(sw1, sw1_tbl0, srcIp, port1, 12, mapInfo, sampling_rate_N);
+                        install_pof_add_int_field_rule_match_srcIp(sw1, sw1_tbl0, srcIp, first_hop_output_port, 12, mapInfo, sampling_rate_N);
                         /* rule2: default rule, mask is 0x00000000 */
 //                        install_pof_output_flow_rule_match_default_ip_at_SRC(sw1, sw1_tbl0, srcIp, port2, 1);
 
