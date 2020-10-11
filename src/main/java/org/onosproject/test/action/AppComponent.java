@@ -25,8 +25,10 @@ import org.onosproject.floodlightpof.protocol.action.OFAction;
 import org.onosproject.floodlightpof.protocol.table.OFFlowTable;
 import org.onosproject.floodlightpof.protocol.table.OFTableType;
 import org.onosproject.net.DeviceId;
+import org.onosproject.net.Port;
 import org.onosproject.net.PortNumber;
 import org.onosproject.net.device.DeviceAdminService;
+import org.onosproject.net.device.DeviceService;
 import org.onosproject.net.flow.*;
 import org.onosproject.net.flow.criteria.Criteria;
 import org.onosproject.net.flow.criteria.Criterion;
@@ -124,7 +126,8 @@ public class AppComponent {
     private String MAPINFO_BW_SWID = "0021";
     private String MAPINFO_BYTES_PKTS_BW_SWID = "00e1";
     private String MAPINFO_BYTES_PKTS_LATENCY_BW_SWID = "00f1";
-    private String ML_INT_MAPINFO = MAPINFO_BYTES_PKTS_LATENCY_BW_SWID;    // 0401
+    private String MAPINFO_BER_FWDACTS_BYTES_PKTS_BW_LATENCY_INGRESSTIME_OPORT_IPORT_SWID = "06ff";
+    private String ML_INT_MAPINFO = MAPINFO_BER_FWDACTS_BYTES_PKTS_BW_LATENCY_INGRESSTIME_OPORT_IPORT_SWID;    // 0401
 
     private int first_hop_output_port = port2;
     private int second_hop_output_port = port2;
@@ -198,8 +201,8 @@ public class AppComponent {
             e.printStackTrace();
         }
 
-        String mapInfo = ML_INT_MAPINFO;
-        int sampling_rate_N = 2;
+        String mapInfo = MAPINFO_BER_FWDACTS_BYTES_PKTS_BW_LATENCY_INGRESSTIME_OPORT_IPORT_SWID;
+        int sampling_rate_N = 1;
 
         /**
          * SRC(sw1): send flow table match src_ip{208, 32}
@@ -207,19 +210,19 @@ public class AppComponent {
         /* rule1: send add_int_field rule to insert INT header in 1/N, the key->len refers to 'N'.*/
         install_pof_add_int_field_rule_match_srcIp(sw1, sw1_tbl0, srcIp, first_hop_output_port, 12, mapInfo, sampling_rate_N);
         /* rule2: default rule, mask is 0x00000000 */
-//        install_pof_output_flow_rule_match_default_ip_at_SRC(sw1, sw1_tbl0, srcIp, port2, 1);
+//        install_pof_output_flow_rule_match_default_ip_at_SRC(sw1, sw1_tbl0, srcIp, first_hop_output_port, 1);
 
         /** INTER(sw2): send flow table match int_type{272, 16} */
         /* rule1: add_int_action. if revalidate path, with add_func_field action */
         install_pof_add_int_field_rule_match_type(sw2, sw2_tbl0, int_type, second_hop_output_port, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
         /* rule2: default rule, mask is 0x0000 */
-//        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw2, sw2_tbl0, int_type, port2, 1);
+//        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw2, sw2_tbl0, int_type, second_hop_output_port, 1);
 
         /** INTER(sw3): send flow table match int_type{272, 16} */
         /* rule1: add_int_action. if revalidate path, with add_func_field action */
         install_pof_add_int_field_rule_match_type(sw3, sw3_tbl0, int_type, third_hop_output_port, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
         /* rule2: default rule, mask is 0x0000 */
-//        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw2, sw2_tbl0, int_type, port2, 1);
+//        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw2, sw2_tbl0, int_type, third_hop_output_port, 1);
 
         log.info("activate_OFC2021_packet_layer_experiment Started");
     }
@@ -259,7 +262,9 @@ public class AppComponent {
         }
 
         String mapInfo = MAPINFO_BER_SWID;
-        int sampling_rate_N = 4;
+//        String mapInfo = MAPINFO_BYTES_PKTS_BW_SWID;
+//        String mapInfo = MAPINFO_BER_FWDACTS_BYTES_PKTS_BW_LATENCY_INGRESSTIME_OPORT_IPORT_SWID;
+        int sampling_rate_N = 2;
 
         /**
          * SRC(sw1): send flow table match src_ip{208, 32}
@@ -267,19 +272,19 @@ public class AppComponent {
         /* rule1: send add_int_field rule to insert INT header in 1/N, the key->len refers to 'N'.*/
         install_pof_add_int_field_rule_match_srcIp(sw1, sw1_tbl0, srcIp, first_hop_output_port, 12, mapInfo, sampling_rate_N);
         /* rule2: default rule, mask is 0x00000000 */
-//        install_pof_output_flow_rule_match_default_ip_at_SRC(sw1, sw1_tbl0, srcIp, port2, 1);
+        install_pof_output_flow_rule_match_default_ip_at_SRC(sw1, sw1_tbl0, srcIp, first_hop_output_port, 1);
 
         /** INTER(sw2): send flow table match int_type{272, 16} */
         /* rule1: add_int_action. if revalidate path, with add_func_field action */
         install_pof_add_int_field_rule_match_type(sw2, sw2_tbl0, int_type, second_hop_output_port, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
         /* rule2: default rule, mask is 0x0000 */
-//        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw2, sw2_tbl0, int_type, port2, 1);
+        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw2, sw2_tbl0, int_type, second_hop_output_port, 1);
 
         /** INTER(sw3): send flow table match int_type{272, 16} */
         /* rule1: add_int_action. if revalidate path, with add_func_field action */
         install_pof_add_int_field_rule_match_type(sw3, sw3_tbl0, int_type, third_hop_output_port, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
         /* rule2: default rule, mask is 0x0000 */
-//        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw2, sw2_tbl0, int_type, port2, 1);
+        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw2, sw2_tbl0, int_type, third_hop_output_port, 1);
 
         log.info("activate_OFC2021_optical_layer_experiment Started");
     }
@@ -772,12 +777,25 @@ public class AppComponent {
         TrafficTreatment.Builder trafficTreamt = DefaultTrafficTreatment.builder();
         List<OFAction> actions = new ArrayList<>();
 
+        /* modify SIP: make this flow into 2 flows. otherwise, match error at next node. Only used at src.
+         *             because dpdk->rss_hash will hash src_ip and dst_ip and see them as one flow. We insert
+         *             INT_HEADER behind IPv4.dst, will mis-match (encounter match-only-one-flow again)
+         *             at next node.
+         */
+        OFMatch20 Field_SIP =  new OFMatch20();
+        Field_SIP.setFieldName("SIP_B3");
+        Field_SIP.setFieldId(Protocol.SIP_ID);
+        Field_SIP.setOffset((short) (Protocol.IPV4_SIP_OFF + 16));
+        Field_SIP.setLength(Protocol.IPV4_SIP_LEN);
+        OFAction action_inc_SIP = DefaultPofActions.modifyField(Field_SIP, 1).action();
+
         OFAction action_add_int_field = DefaultPofActions.addField(Protocol.INT_FIELD_ID, Protocol.INT_HEADER_DATA_OFF, sampling_rate_N * 8, mapInfo).action();
 //        OFAction action_set_eth_type = DefaultPofActions.setField(Protocol.ETH_TYPE_ID, Protocol.ETH_TYPE_OFF, Protocol.ETH_TYPE_LEN, Protocol.INT_TYPE_VAL, Protocol.ETH_TYPE_MASK).action();
         OFAction action_output = DefaultPofActions.output((short) 0, (short) 0, (short) 0, outport).action();
 
         actions.add(action_add_int_field);
 //        actions.add(action_set_eth_type);
+        actions.add(action_inc_SIP);
         actions.add(action_output);
         trafficTreamt.add(DefaultPofInstructions.applyActions(actions));
         log.info("actions: {}.", actions);
@@ -1996,33 +2014,55 @@ public class AppComponent {
                         /* [0, 0.7), sampling_ration = 0.5, N = 2. */
                         case 0:
                         case 1:
-                        case 2:
-                        case 3:
-                        case 4:
-                        case 5:
-                        case 6: {
+                        case 2: {
                             cur_sampling_N = N2;
 
                             if (his_sampling_N == 0) {   // init stage
                                 his_sampling_N = cur_sampling_N;
                                 should_update_flow_entry = true;
-                                log.info("in case 0~6, should update init.");
+                                log.info("in case 0~2, should update init.");
                                 break;
                             }
 
                             if (his_sampling_N != cur_sampling_N) {  // update stage
                                 his_sampling_N = cur_sampling_N;
                                 should_update_flow_entry = true;
-                                log.info("in case 0~6, should update.");
+                                log.info("in case 0~2, should update.");
                             } else { // no need update
                                 /* pass */
                                 should_update_flow_entry = false;
-                                log.info("in case 0~6, should not update.");
+                                log.info("in case 0~2, should not update.");
+                            }
+                            break;
+                        }
+
+                        case 3:
+                        case 4:
+                        case 5:
+                        case 6: {
+                            cur_sampling_N = N5;
+
+                            if (his_sampling_N == 0) {   // init stage
+                                his_sampling_N = cur_sampling_N;
+                                should_update_flow_entry = true;
+                                log.info("in case 3~6, should update init.");
+                                break;
+                            }
+
+                            if (his_sampling_N != cur_sampling_N) {  // update stage
+                                his_sampling_N = cur_sampling_N;
+                                should_update_flow_entry = true;
+                                log.info("in case 3~6, should update.");
+                            } else { // no need update
+                                /* pass */
+                                should_update_flow_entry = false;
+                                log.info("in case 3~6, should not update.");
                             }
                             break;
                         }
 
                         /* [0.7, 0.8), sampling_ration = 0.3, N = 3.  */
+                        /*case 6:*/
                         case 7: {
                             cur_sampling_N = N10;
 
@@ -2045,7 +2085,8 @@ public class AppComponent {
                             break;
                         }
 
-                        /* [0.8, 0.9), sampling_ration = 0.2, N = 5.  */
+                        /* [0.8, 0.9), sampling_ration = 0.2, N = 5. */
+                        /*case 7:*/
                         case 8: {
                             cur_sampling_N = N100;
 
@@ -2095,7 +2136,7 @@ public class AppComponent {
 
 
                     if (should_update_flow_entry) {
-                        String mapInfo = ML_INT_MAPINFO;  // switch_id and bandwidth
+                        String mapInfo = MAPINFO_BER_FWDACTS_BYTES_PKTS_BW_LATENCY_INGRESSTIME_OPORT_IPORT_SWID;  // switch_id and bandwidth
                         int sampling_rate_N = cur_sampling_N;
                         update_entry_cnt += 1;
 
