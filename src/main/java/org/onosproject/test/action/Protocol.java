@@ -19,6 +19,12 @@ public class Protocol {
     final static short DIP_ID= 13;
 
     /**
+     * TCP field ids.
+     */
+    final static short TCP_SRC_PORT_ID = 29;
+    final static short TCP_DST_PORT_ID = 30;
+
+    /**
      * INT header fields ids.
      */
     final static short INT_TYPE_ID = 15;
@@ -47,6 +53,11 @@ public class Protocol {
     final static short IPV4_SIP_LEN = 4 * 8;
     final static short IPV4_DIP_OFF = 30 * 8;
     final static short IPV4_DIP_LEN = 4 * 8;
+
+    final static short TCP_SRC_PORT_OFF = 34 * 8;
+    final static short TCP_SRC_PORT_LEN = 2 * 8;
+    final static short TCP_DST_PORT_OFF = 36 * 8;
+    final static short TCP_DST_PORT_LEN = 2 * 8;
 
     /**
      * INT header in bits.
