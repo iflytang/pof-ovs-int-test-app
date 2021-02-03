@@ -92,6 +92,7 @@ public class AppComponent {
     int port1 = 1;
     int port2 = 2;
     int port3 = 3;
+    int port4 = 4;
     int controller_port = (int) PortNumber.CONTROLLER.toLong();
 
     /**
@@ -130,12 +131,12 @@ public class AppComponent {
     private String ML_INT_MAPINFO = MAPINFO_BER_FWDACTS_BYTES_PKTS_BW_LATENCY_INGRESSTIME_OPORT_IPORT_SWID;    // 0401
 
     /* ICCCN 2021 */
-    private String MAPINFO_ALL = "0x03ff";
-    private int INT_Field_len_for_3_hops = 117; // bytes
+    private String MAPINFO_ALL = "0x7f03";
+    private int INT_Field_len_for_3_hops = 48 * 8; //117 * 8; // bytes
 
-    private int first_hop_output_port = port2;
+    private int first_hop_output_port = port4;
     private int second_hop_output_port = port2;
-    private int third_hop_output_port = port2;
+    private int third_hop_output_port = port3;
 
     /**
      * sock flag. true in activate(), false in deactivate().
@@ -153,8 +154,8 @@ public class AppComponent {
         /* end of OFC2021 experiments. */
 
         /* ICCCN2021 experiments. */
-        activate_ICCCN2021_experiment_scenario_1();
-//        activate_ICCCN2021_experiment_scenario_2();
+//        activate_ICCCN2021_experiment_scenario_1();
+        activate_ICCCN2021_experiment_scenario_2();
         /* end of ICCCN2021 experiments. */
 
 //        pofTestStart_INT_Insertion_for_single_node();
@@ -176,8 +177,8 @@ public class AppComponent {
         /* end of OFC2021 experiments. */
 
         /* ICCCN2021 experiments. */
-        deactivate_ICCCN2021_experiment_scenario_1();
-//        deactivate_ICCCN2021_experiment_scenario_2();
+//        deactivate_ICCCN2021_experiment_scenario_1();
+        deactivate_ICCCN2021_experiment_scenario_2();
         /* end of ICCCN2021 experiments. */
 
 
@@ -200,74 +201,6 @@ public class AppComponent {
         log.info("activate_ICCCN2021_experiment_scenario_1 Started, init flow rules to switches.");
         sw1_tbl0 = send_pof_flow_table_match_SIP_at_SRC(sw1, "AddIntHeader");
 //        sw5_tbl0 = send_pof_flow_table_match_INT_TYPE_at_INTER(sw5, "AddIntMetadata");
-//        sw6_tbl0 = send_pof_flow_table_match_INT_TYPE_at_DST_FIREWALL_TO_NAPT(sw6, "AddIntMetadata");
-
-        /* wait 1s. */
-        try {
-            Thread.sleep(1000);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        String mapInfo = MAPINFO_ALL;
-        int sampling_rate_N = 2;
-
-        /**
-         * SRC(sw1): send flow table match src_ip{208, 32}
-         */
-        /* rule1: send add_int_field rule to insert INT header in 1/N, the key->len refers to 'N'.*/
-        install_pof_add_int_field_rule_match_srcIp(sw1, sw1_tbl0, srcIp, first_hop_output_port, 12, mapInfo, sampling_rate_N);
-        /* rule2: default rule, mask is 0x00000000 */
-        install_pof_output_flow_rule_match_default_ip_at_SRC(sw1, sw1_tbl0, srcIp, first_hop_output_port, 1);
-
-        /** INTER(sw5): send flow table match int_type{272, 16} */
-        /* rule1: add_int_action. if revalidate path, with add_func_field action */
-//        install_pof_add_int_field_rule_match_type(sw5, sw5_tbl0, int_type, second_hop_output_port, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
-//        /* rule2: default rule, mask is 0x0000 */
-//        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw5, sw5_tbl0, int_type, second_hop_output_port, 1);
-
-        /** INTER(sw6): send flow table match int_type{272, 16} */
-        /* rule1: add_int_action. if revalidate path, with add_func_field action */
-//        install_pof_add_int_field_rule_match_type_for_firewall(sw6, sw6_tbl0, int_type, third_hop_output_port, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
-//        /* rule2: default rule, mask is 0x0000 */
-//        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw6, sw6_tbl0, int_type, third_hop_output_port, 1);
-
-        log.info("activate_ICCCN2021_experiment_scenario_1 Started");
-
-        /* wait 15s. */
-        try {
-            Thread.sleep(15000);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        /** INTER(sw6): send flow table match int_type{272, 16}, update policy */
-        /* rule1: add_int_action. if revalidate path, with add_func_field action */
-//        install_pof_add_int_field_rule_match_type_for_firewall_and_napt(sw6, sw6_tbl0, int_type, third_hop_output_port, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
-//        /* rule2: default rule, mask is 0x0000 */
-//        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw6, sw6_tbl0, int_type, third_hop_output_port, 1);
-    }
-
-    public void deactivate_ICCCN2021_experiment_scenario_1() {
-
-        /* remove flow tables */
-        remove_pof_flow_table(sw1, sw1_tbl0);
-//        remove_pof_flow_table(sw5, sw5_tbl0);
-//        remove_pof_flow_table(sw6, sw6_tbl0);
-
-        log.info("deactivate_ICCCN2021_experiment_scenario_1, all flow/group tables are removed!");
-    }
-
-    /* ICCCN2021 exper2: validate the POF_Switch's flexibility and P4_Switch's performance.
-     * scenario 2: in vNF chain, one flow -> two flows
-     * MAPINFO = 0x03ff, collect all INT items
-     * */
-    public void activate_ICCCN2021_experiment_scenario_2() {
-
-        /* send flow rules to ovs-pof */
-        log.info("activate_ICCCN2021_experiment_scenario_2 Started, init flow rules to switches.");
-        sw1_tbl0 = send_pof_flow_table_match_SIP_at_SRC(sw1, "AddIntHeader");
-        sw5_tbl0 = send_pof_flow_table_match_INT_TYPE_at_INTER(sw5, "AddIntMetadata");
         sw6_tbl0 = send_pof_flow_table_match_INT_TYPE_at_DST_FIREWALL_TO_NAPT(sw6, "AddIntMetadata");
 
         /* wait 1s. */
@@ -286,13 +219,85 @@ public class AppComponent {
         /* rule1: send add_int_field rule to insert INT header in 1/N, the key->len refers to 'N'.*/
         install_pof_add_int_field_rule_match_srcIp(sw1, sw1_tbl0, srcIp, first_hop_output_port, 12, mapInfo, sampling_rate_N);
         /* rule2: default rule, mask is 0x00000000 */
-        install_pof_output_flow_rule_match_default_ip_at_SRC(sw1, sw1_tbl0, srcIp, first_hop_output_port, 1);
+//        install_pof_output_flow_rule_match_default_ip_at_SRC(sw1, sw1_tbl0, srcIp, first_hop_output_port, 1);
 
         /** INTER(sw5): send flow table match int_type{272, 16} */
         /* rule1: add_int_action. if revalidate path, with add_func_field action */
-        install_pof_add_int_field_rule_match_type(sw5, sw5_tbl0, int_type, second_hop_output_port, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
+//        install_pof_add_int_field_rule_match_type(sw5, sw5_tbl0, int_type, second_hop_output_port, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
+//        /* rule2: default rule, mask is 0x0000 */
+//        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw5, sw5_tbl0, int_type, second_hop_output_port, 1);
+
+        /** INTER(sw6): send flow table match int_type{272, 16} */
+        /* rule1: add_int_action. if revalidate path, with add_func_field action */
+//        install_pof_add_int_field_rule_match_type_for_firewall(sw6, sw6_tbl0, int_type, third_hop_output_port, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
+//        /* rule2: default rule, mask is 0x0000 */
+        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw6, sw6_tbl0, int_type, third_hop_output_port, 10);
+
+        log.info("activate_ICCCN2021_experiment_scenario_1 Started");
+
+        /* wait 15s. */
+        try {
+            Thread.sleep(100000);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        log.info("++++++++++++ we are changing pipelines with pof.");
+
+        /** INTER(sw6): send flow table match int_type{272, 16}, update policy */
+        /* rule1: add_int_action. if revalidate path, with add_func_field action */
+//        install_pof_add_int_field_rule_match_type_for_firewall_and_napt(sw6, sw6_tbl0, int_type, third_hop_output_port, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
+//        /* rule2: default rule, mask is 0x0000 */
+        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw6, sw6_tbl0, int_type, third_hop_output_port, 10);
+    }
+
+    public void deactivate_ICCCN2021_experiment_scenario_1() {
+
+        /* remove flow tables */
+        remove_pof_flow_table(sw1, sw1_tbl0);
+//        remove_pof_flow_table(sw5, sw5_tbl0);
+        remove_pof_flow_table(sw6, sw6_tbl0);
+
+        log.info("deactivate_ICCCN2021_experiment_scenario_1, all flow/group tables are removed!");
+    }
+
+    /* ICCCN2021 exper2: validate the POF_Switch's flexibility and P4_Switch's performance.
+     * scenario 2: in vNF chain, one flow -> two flows
+     * MAPINFO = 0x03ff, collect all INT items
+     * */
+    public void activate_ICCCN2021_experiment_scenario_2() {
+
+        /* send flow rules to ovs-pof */
+        log.info("activate_ICCCN2021_experiment_scenario_2 Started, init flow rules to switches.");
+        sw1_tbl0 = send_pof_flow_table_match_SIP_at_SRC(sw1, "AddIntHeader");
+//        sw5_tbl0 = send_pof_flow_table_match_SIP_at_SRC(sw5, "Output");
+//        sw5_tbl0 = send_pof_flow_table_match_INT_TYPE_at_INTER(sw5, "AddIntMetadata");
+        sw6_tbl0 = send_pof_flow_table_match_INT_TYPE_at_DST_FIREWALL_TO_NAPT(sw6, "AddIntMetadata");
+
+        /* wait 1s. */
+        try {
+            Thread.sleep(1000);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        String mapInfo = MAPINFO_ALL;
+        int sampling_rate_N = 1;
+
+        /**
+         * SRC(sw1): send flow table match src_ip{208, 32}
+         */
+        /* rule1: send add_int_field rule to insert INT header in 1/N, the key->len refers to 'N'.*/
+        install_pof_add_int_field_rule_match_srcIp(sw1, sw1_tbl0, srcIp, first_hop_output_port, 12, mapInfo, sampling_rate_N);
+        /* rule2: default rule, mask is 0x00000000 */
+//        install_pof_output_flow_rule_match_default_ip_at_SRC(sw1, sw1_tbl0, srcIp, first_hop_output_port, 1);
+
+        /** INTER(sw5): send flow table match int_type{272, 16} */
+        /* rule1: add_int_action. if revalidate path, with add_func_field action */
+//        install_pof_add_int_field_rule_match_type(sw5, sw5_tbl0, int_type, second_hop_output_port, 12, Protocol.DATA_PLANE_MAPINFO_VAL);
         /* rule2: default rule, mask is 0x0000 */
-        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw5, sw5_tbl0, int_type, second_hop_output_port, 1);
+//        install_pof_output_flow_rule_match_default_type_at_INTER_or_SINK(sw5, sw5_tbl0, int_type, second_hop_output_port, 1);
+//        install_pof_output_flow_rule_match_default_ip_at_SRC(sw5, sw5_tbl0, srcIp, second_hop_output_port, 10);
 
         /** INTER(sw6): send flow table match int_type{272, 16} */
         /* rule1: add_int_action. if revalidate path, with add_func_field action */
@@ -939,23 +944,25 @@ public class AppComponent {
         TrafficTreatment.Builder trafficTreamt = DefaultTrafficTreatment.builder();
         List<OFAction> actions = new ArrayList<>();
 
-        OFAction action_del_int_field = DefaultPofActions.deleteField(Protocol.INT_HEADER_TYPE_OFF, INT_Field_len_for_3_hops).action();
+        OFAction action_del_int_field_1 = DefaultPofActions.deleteField(Protocol.INT_HEADER_TYPE_OFF, INT_Field_len_for_3_hops).action();
+        OFAction action_del_int_field_2 = DefaultPofActions.deleteField(Protocol.INT_HEADER_TYPE_OFF, INT_Field_len_for_3_hops).action();
 
-//        OFAction action_add_int_field = DefaultPofActions.addField(Protocol.INT_FIELD_ID, Protocol.INT_HEADER_DATA_OFF, Protocol.INT_HEADER_TYPE_LEN, mapInfo).action();
+        OFAction action_add_int_field = DefaultPofActions.addField(Protocol.INT_FIELD_ID, Protocol.INT_HEADER_DATA_OFF, Protocol.INT_HEADER_TYPE_LEN, mapInfo).action();
 
         // modify INT-ttl
-//        OFMatch20 Field_INT_ttl =  new OFMatch20();
-//        Field_INT_ttl.setFieldName("INT_ttl");
-//        Field_INT_ttl.setFieldId(Protocol.INT_TTL_ID);
-//        Field_INT_ttl.setOffset(Protocol.INT_HEADER_TTL_OFF);
-//        Field_INT_ttl.setLength(Protocol.INT_HEADER_TTL_LEN);
+        OFMatch20 Field_INT_ttl =  new OFMatch20();
+        Field_INT_ttl.setFieldName("INT_ttl");
+        Field_INT_ttl.setFieldId(Protocol.INT_TTL_ID);
+        Field_INT_ttl.setOffset(Protocol.INT_HEADER_TTL_OFF);
+        Field_INT_ttl.setLength(Protocol.INT_HEADER_TTL_LEN);
 
-//        OFAction action_inc_INT_ttl = DefaultPofActions.modifyField(Field_INT_ttl, 1).action();
+        OFAction action_inc_INT_ttl = DefaultPofActions.modifyField(Field_INT_ttl, 1).action();
         OFAction action_output = DefaultPofActions.output((short) 0, (short) 0, (short) 0, outport).action();
 
-//        actions.add(action_add_int_field);    /* add int metadata. */
-//        actions.add(action_inc_INT_ttl);      /* increment int_ttl field by 1 */
-        actions.add(action_del_int_field);
+        actions.add(action_add_int_field);    /* add int metadata. */
+        actions.add(action_inc_INT_ttl);      /* increment int_ttl field by 1 */
+//        actions.add(action_del_int_field_1);
+//        actions.add(action_del_int_field_2);
         actions.add(action_output);
         trafficTreamt.add(DefaultPofInstructions.applyActions(actions));
         log.info("actions: {}.", actions);
@@ -1066,12 +1073,12 @@ public class AppComponent {
         OFAction action_inc_SIP = DefaultPofActions.modifyField(Field_SIP, 1).action();
 
         OFAction action_add_int_field = DefaultPofActions.addField(Protocol.INT_FIELD_ID, Protocol.INT_HEADER_DATA_OFF, sampling_rate_N * 8, mapInfo).action();
-//        OFAction action_set_eth_type = DefaultPofActions.setField(Protocol.ETH_TYPE_ID, Protocol.ETH_TYPE_OFF, Protocol.ETH_TYPE_LEN, Protocol.INT_TYPE_VAL, Protocol.ETH_TYPE_MASK).action();
+        OFAction action_set_eth_type = DefaultPofActions.setField(Protocol.ETH_TYPE_ID, Protocol.ETH_TYPE_OFF, Protocol.ETH_TYPE_LEN, Protocol.INT_TYPE_VAL, Protocol.ETH_TYPE_MASK).action();
         OFAction action_output = DefaultPofActions.output((short) 0, (short) 0, (short) 0, outport).action();
 
         actions.add(action_add_int_field);
 //        actions.add(action_set_eth_type);
-        actions.add(action_inc_SIP);
+//        actions.add(action_inc_SIP);
         actions.add(action_output);
         trafficTreamt.add(DefaultPofInstructions.applyActions(actions));
         log.info("actions: {}.", actions);
